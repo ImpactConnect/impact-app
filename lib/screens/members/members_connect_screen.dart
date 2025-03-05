@@ -606,7 +606,7 @@ class _MembersConnectScreenState extends State<MembersConnectScreen>
         ),
       ),
       bottomNavigationBar:
-          const BottomNavBar(currentIndex: 2), // Set to Members index
+          const BottomNavBar(currentIndex: 0), // Set to Home index
     );
   }
 }

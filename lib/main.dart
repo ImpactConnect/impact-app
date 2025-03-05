@@ -38,6 +38,7 @@ import 'widgets/home_carousel.dart';
 import 'widgets/sermon_card.dart';
 import 'screens/report_bug_screen.dart';
 import 'screens/live_stream_screen.dart';
+import 'screens/settings_screen.dart'; // Import the SettingsScreen
 
 
 Future<void> main() async {
@@ -185,6 +186,7 @@ class MyApp extends StatelessWidget {
                 return SearchScreen(initialQuery: query);
               },
               '/report_bug': (context) => const ReportBugScreen(),
+              '/settings': (context) => const SettingsScreen(), // Add the settings route
             },
             onGenerateRoute: (settings) {
               final uri = Uri.parse(settings.name ?? '');

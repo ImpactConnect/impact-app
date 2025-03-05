@@ -239,7 +239,7 @@ class _CommunityPostsScreenState extends State<CommunityPostsScreen> {
         child: const Icon(Icons.add),
       ),
       bottomNavigationBar:
-          const BottomNavBar(currentIndex: 2), // Set to Community index
+          const BottomNavBar(currentIndex: 0), // Set to Home index
     );
   }
 

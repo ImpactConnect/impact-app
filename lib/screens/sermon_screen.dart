@@ -393,7 +393,7 @@ class _SermonScreenState extends State<SermonScreen>
             ),
         ],
       ),
-      bottomNavigationBar: const BottomNavBar(currentIndex: 2), // Update this line
+      bottomNavigationBar: const BottomNavBar(currentIndex: 1),
     );
   }
 

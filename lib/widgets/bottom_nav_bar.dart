@@ -19,9 +19,27 @@ class BottomNavBar extends StatelessWidget {
   void _onItemTapped(BuildContext context, int index) {
     if (index == currentIndex) return;
     
+    // Special handling for ebook to audio navigation
+    if (currentIndex == 2 && index == 1) {
+      // Pop the current screen first
+      Navigator.of(context).pop();
+      
+      // Then push the sermon screen
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => SermonScreen(
+            sermonService: MyApp.of(context).sermonService,
+            audioPlayerService: MyApp.of(context).audioPlayerService,
+          ),
+        ),
+      );
+      return;
+    }
+    
+    // For all other navigation
     switch (index) {
       case 0:
-        // Pop to root and replace with HomePage
+        // Home
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const HomePage()),
           (route) => false,
@@ -29,35 +47,35 @@ class BottomNavBar extends StatelessWidget {
         break;
       case 1:
         // Audio/Sermons
-        Navigator.push(
-          context,
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) => SermonScreen(
               sermonService: MyApp.of(context).sermonService,
               audioPlayerService: MyApp.of(context).audioPlayerService,
             ),
           ),
+          (route) => route.isFirst,
         );
         break;
       case 2:
         // Ebook/Library
-        Navigator.push(
-          context,
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LibraryScreen()),
+          (route) => route.isFirst,
         );
         break;
       case 3:
         // Report Bug
-        Navigator.push(
-          context,
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const ReportBugScreen()),
+          (route) => route.isFirst,
         );
         break;
       case 4:
         // Settings
-        Navigator.push(
-          context,
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const SettingsScreen()),
+          (route) => route.isFirst,
         );
         break;
     }
@@ -79,12 +97,12 @@ class BottomNavBar extends StatelessWidget {
         label: 'Ebooks',
       ),
       BottomNavigationBarItem(
-        icon: Icon(Icons.settings),
-        label: 'Settings',
-      ),
-      BottomNavigationBarItem(
         icon: Icon(Icons.bug_report),
         label: 'Report Bug',
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.settings),
+        label: 'Settings',
       ),
     ];
     

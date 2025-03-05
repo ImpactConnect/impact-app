@@ -133,7 +133,7 @@ class _CommunityDashboardScreenState extends State<CommunityDashboardScreen> {
         ),
       ),
       bottomNavigationBar:
-          const BottomNavBar(currentIndex: 2), // Set to Community index
+          const BottomNavBar(currentIndex: 0), // Set to Home index
     );
   }
 

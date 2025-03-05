@@ -210,7 +210,7 @@ class _ReportBugScreenState extends State<ReportBugScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: const BottomNavBar(currentIndex: 5),
+      bottomNavigationBar: const BottomNavBar(currentIndex: 3),
     );
   }
 }
