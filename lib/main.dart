@@ -29,6 +29,7 @@ import 'services/blog_service.dart';
 import 'services/note_service.dart';
 import 'services/onesignal_service.dart'; 
 import 'services/sermon_service.dart';
+import 'services/update_service.dart';
 import 'utils/data_migration.dart';
 import 'utils/toast_utils.dart';
 import 'providers/language_provider.dart';
@@ -36,10 +37,10 @@ import 'providers/theme_provider.dart';
 import 'widgets/bottom_nav_bar.dart';
 import 'widgets/home_carousel.dart';
 import 'widgets/sermon_card.dart';
+import 'widgets/update_dialog.dart';
 import 'screens/report_bug_screen.dart';
 import 'screens/live_stream_screen.dart';
 import 'screens/settings_screen.dart'; // Import the SettingsScreen
-
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -343,12 +344,14 @@ class _HomePageState extends State<HomePage> {
   NoteService? _noteService;
   bool _isLoading = true;
   bool _initialized = false;
+  final UpdateService _updateService = UpdateService();
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialized) {
       _initServices();
+      _checkForUpdates();
       _initialized = true;
     }
   }
@@ -360,6 +363,26 @@ class _HomePageState extends State<HomePage> {
       _noteService = MyApp.of(context).noteService;
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    final updateData = await _updateService.checkForUpdates();
+    
+    if (updateData != null && mounted) {
+      // Show the update dialog
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialog(
+          context: context,
+          barrierDismissible: false, // User must tap button to dismiss dialog
+          builder: (BuildContext context) {
+            return UpdateDialog(
+              update: updateData,
+              updateService: _updateService,
+            );
+          },
+        );
+      });
     }
   }
 
