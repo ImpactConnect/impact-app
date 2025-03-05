@@ -118,6 +118,7 @@ class _SermonScreenState extends State<SermonScreen>
       _showMiniPlayer = true;
       _currentSermon = sermon;
     });
+    // The click count is already incremented in the SermonCard onTap
     widget.audioPlayerService.playSermonFromPlaylist(sermon, playlist);
   }
 

@@ -25,7 +25,11 @@ class SermonCard extends StatelessWidget {
       elevation: 2,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListTile(
-        onTap: onTap,
+        onTap: () {
+          // Increment click count when sermon is tapped
+          sermonService.incrementClickCount(sermon);
+          onTap();
+        },
         leading: Stack(
           children: [
             ClipRRect(
@@ -83,7 +87,36 @@ class SermonCard extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(sermon.preacherName),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(sermon.preacherName),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.play_circle_outline, size: 14, color: Colors.blue[700]),
+                const SizedBox(width: 4),
+                Text(
+                  '${sermon.clickCount} plays',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Icon(Icons.download_outlined, size: 14, color: Colors.green[700]),
+                const SizedBox(width: 4),
+                Text(
+                  '${sermon.downloadCount} downloads',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

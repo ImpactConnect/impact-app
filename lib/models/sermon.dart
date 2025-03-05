@@ -13,6 +13,8 @@ class Sermon {
     this.isBookmarked = false,
     this.isDownloaded = false,
     this.localAudioPath,
+    this.clickCount = 0,
+    this.downloadCount = 0,
   });
 
   factory Sermon.fromFirestore(DocumentSnapshot doc) {
@@ -47,6 +49,8 @@ class Sermon {
       isBookmarked: data['isBookmarked'] as bool? ?? false,
       isDownloaded: data['isDownloaded'] as bool? ?? false,
       localAudioPath: data['localAudioPath'] as String?,
+      clickCount: data['clickCount'] as int? ?? 0,
+      downloadCount: data['downloadCount'] as int? ?? 0,
     );
   }
 
@@ -63,6 +67,8 @@ class Sermon {
       isBookmarked: json['isBookmarked'] as bool? ?? false,
       isDownloaded: json['isDownloaded'] as bool? ?? false,
       localAudioPath: json['localAudioPath'] as String?,
+      clickCount: json['clickCount'] as int? ?? 0,
+      downloadCount: json['downloadCount'] as int? ?? 0,
     );
   }
   final String id;
@@ -76,6 +82,8 @@ class Sermon {
   bool isBookmarked;
   bool isDownloaded;
   String? localAudioPath;
+  int clickCount;
+  int downloadCount;
 
   Map<String, dynamic> toJson() {
     return {
@@ -90,6 +98,8 @@ class Sermon {
       'isBookmarked': isBookmarked,
       'isDownloaded': isDownloaded,
       'localAudioPath': localAudioPath,
+      'clickCount': clickCount,
+      'downloadCount': downloadCount,
     };
   }
 
@@ -105,6 +115,8 @@ class Sermon {
     bool? isBookmarked,
     bool? isDownloaded,
     String? localAudioPath,
+    int? clickCount,
+    int? downloadCount,
   }) {
     return Sermon(
       id: id ?? this.id,
@@ -118,6 +130,8 @@ class Sermon {
       isBookmarked: isBookmarked ?? this.isBookmarked,
       isDownloaded: isDownloaded ?? this.isDownloaded,
       localAudioPath: localAudioPath ?? this.localAudioPath,
+      clickCount: clickCount ?? this.clickCount,
+      downloadCount: downloadCount ?? this.downloadCount,
     );
   }
 }

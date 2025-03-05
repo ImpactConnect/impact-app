@@ -132,6 +132,8 @@ class SermonService {
         thumbnailUrl: 'https://example.com/thumbnail1.jpg',
         audioUrl: 'https://example.com/sermon1.mp3',
         dateCreated: DateTime.now(),
+        clickCount: 15,
+        downloadCount: 5,
       ),
     ];
   }
@@ -151,6 +153,13 @@ class SermonService {
 
       sermon.isDownloaded = true;
       sermon.localAudioPath = file.path;
+      
+      // Increment download counter
+      sermon.downloadCount += 1;
+      
+      // Update Firestore
+      await _updateSermonCounters(sermon);
+      
       await _saveToPrefs(sermon);
 
       ToastUtils.showSuccessToast('Download completed for "${sermon.title}"');
@@ -158,6 +167,34 @@ class SermonService {
       print('Error downloading sermon: $e');
       ToastUtils.showErrorToast('Failed to download "${sermon.title}"');
       rethrow;
+    }
+  }
+
+  Future<void> incrementClickCount(Sermon sermon) async {
+    try {
+      // Increment click counter
+      sermon.clickCount += 1;
+      
+      // Update Firestore
+      await _updateSermonCounters(sermon);
+      
+      // Save to local storage
+      await _saveToPrefs(sermon);
+    } catch (e) {
+      print('Error incrementing click count: $e');
+      // Don't show error toast to user as this is a background operation
+    }
+  }
+  
+  Future<void> _updateSermonCounters(Sermon sermon) async {
+    try {
+      await _firestore.collection('sermons').doc(sermon.id).update({
+        'clickCount': sermon.clickCount,
+        'downloadCount': sermon.downloadCount,
+      });
+    } catch (e) {
+      print('Error updating sermon counters in Firestore: $e');
+      // We don't rethrow here to prevent disrupting the user experience
     }
   }
 
