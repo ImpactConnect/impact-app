@@ -1,12 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/book.dart';
+import 'ad_service.dart';
 
 class BookService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _bookmarksKey = 'bookmarked_books';
   final String _downloadedBooksKey = 'downloaded_books';
   final String _readingProgressKey = 'reading_progress';
+  final AdService _adService = AdService();
 
   // Fetch books with optional filters
   Future<List<Book>> getBooks({
@@ -210,6 +212,22 @@ class BookService {
     return {'currentPage': currentPage};
   }
 
+  // Show interstitial ad when a book is opened
+  Future<void> openBook(String bookId) async {
+    try {
+      // Show interstitial ad
+      await _adService.showInterstitialAd();
+      
+      // Update book view count in Firestore
+      await _firestore.collection('books').doc(bookId).update({
+        'viewCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      print('Error opening book: $e');
+      // Don't rethrow to avoid disrupting the user experience
+    }
+  }
+
   Future<List<String>> getAuthors() async {
     try {
       final querySnapshot = await _firestore
@@ -244,6 +262,23 @@ class BookService {
       return topics.toList()..sort();
     } catch (e) {
       print('Error getting topics: $e');
+      return [];
+    }
+  }
+
+  // Get newest books based on published date
+  Future<List<Book>> getNewBooks() async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('books')
+          .where('isActive', isEqualTo: true)
+          .orderBy('publishedDate', descending: true)
+          .limit(10)
+          .get();
+
+      return querySnapshot.docs.map((doc) => Book.fromFirestore(doc)).toList();
+    } catch (e) {
+      print('Error getting new books: $e');
       return [];
     }
   }

@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../models/sermon.dart';
 import '../services/audio_player_service.dart';
+import '../widgets/ads/banner_ad_widget.dart';
 
 class MiniPlayer extends StatefulWidget {
   const MiniPlayer({
@@ -100,6 +102,11 @@ class _MiniPlayerState extends State<MiniPlayer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Banner ad at the top of mini player
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8.0),
+              child: BannerAdWidget(adSize: AdSize.banner),
+            ),
             // Sermon info
             Row(
               children: [

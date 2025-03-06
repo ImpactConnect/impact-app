@@ -8,6 +8,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart'; 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'services/ad_service.dart';
+import 'widgets/ads/banner_ad_widget.dart';
 
 import 'firebase_options.dart';
 import 'models/sermon.dart';
@@ -52,13 +55,39 @@ Future<void> main() async {
     );
     print('Firebase initialized successfully');
 
-    // Initialize OneSignal
-    await OneSignalService.initOneSignal();
+    // Initialize AdMob only on non-web platforms
+    if (!kIsWeb) {
+      print('Initializing AdMob...');
+      final adService = AdService();
+      bool adInitialized = false;
+      try {
+        await adService.initialize();
+        adInitialized = true;
+        print('AdMob initialization completed successfully');
+      } catch (adError) {
+        print('Error initializing AdMob: $adError');
+        // Continue app initialization even if AdMob fails
+      }
+    } else {
+      print('Skipping AdMob initialization on web platform');
+    }
 
-    // Check notification permissions
-    final hasPermission = await OneSignalService.checkNotificationPermissions();
-    if (!hasPermission) {
-      print('Notification permissions not granted');
+    // Initialize OneSignal only on non-web platforms
+    if (!kIsWeb) {
+      try {
+        await OneSignalService.initOneSignal();
+        
+        // Check notification permissions
+        final hasPermission = await OneSignalService.checkNotificationPermissions();
+        if (!hasPermission) {
+          print('Notification permissions not granted');
+        }
+      } catch (e) {
+        print('Error initializing OneSignal: $e');
+        // Continue app initialization even if OneSignal fails
+      }
+    } else {
+      print('Skipping OneSignal initialization on web platform');
     }
 
     // Test Firestore connection
@@ -345,6 +374,7 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = true;
   bool _initialized = false;
   final UpdateService _updateService = UpdateService();
+  final AdService _adService = AdService();
 
   @override
   void didChangeDependencies() {
@@ -361,6 +391,11 @@ class _HomePageState extends State<HomePage> {
       setState(() => _isLoading = true);
       _bibleService = MyApp.of(context).bibleService;
       _noteService = MyApp.of(context).noteService;
+      
+      // Initialize the ad service
+      if (!kIsWeb) {
+        await _adService.initialize();
+      }
     } finally {
       setState(() => _isLoading = false);
     }
@@ -1215,7 +1250,7 @@ class _HomePageState extends State<HomePage> {
                   : Colors.grey),
               const SizedBox(width: 8),
               Text(
-                'Search sermons, blogs, preachers...',
+                'Search sermons, blogs, ebooks...',
                 style: TextStyle(
                   color: Theme.of(context).brightness == Brightness.light 
                       ? Colors.grey[800] 
@@ -1314,14 +1349,35 @@ class _HomePageState extends State<HomePage> {
                 ),
                 _buildSectionTitle('Quick Actions'),
                 _buildQuickActions(),
+                
+                // Banner ad between Quick Actions and Latest Sermons
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+                  child: BannerAdWidget(adSize: AdSize.banner),
+                ),
+                
                 _buildLatestSermonsSection(),
                 _buildSectionTitle('Media'),
                 _buildButtonGrid(mediaButtons),
                 _buildSectionTitle('Browse Messages by Preacher'),
                 _buildPreachersRow(),
+                
+                // Banner ad between Browse by Preacher and Browse by Category
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+                  child: BannerAdWidget(adSize: AdSize.banner),
+                ),
+                
                 _buildSectionTitle('Browse Sermons by Categories'),
                 _buildSermonCategoriesGrid(),
                 _buildRecentBlogPostsSection(),
+                
+                // Large banner ad before the Engagement section
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+                  child: BannerAdWidget(adSize: AdSize.mediumRectangle),
+                ),
+                
                 _buildSectionTitle('Engagement'),
                 _buildButtonGrid(engagementButtons),
                 const SizedBox(height: 24),

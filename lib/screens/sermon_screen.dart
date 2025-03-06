@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../models/sermon.dart';
+import '../services/ad_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/sermon_service.dart';
+import '../widgets/ads/banner_ad_widget.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/sermon_card.dart';
 import '../widgets/bottom_nav_bar.dart'; // Import the BottomNavBar widget
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class SermonScreen extends StatefulWidget {
   const SermonScreen({
@@ -44,6 +47,8 @@ class _SermonScreenState extends State<SermonScreen>
 
   final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey =
       GlobalKey<RefreshIndicatorState>();
+
+  final AdService _adService = AdService();
 
   Future<void> _handleRefresh() async {
     // Trigger a rebuild of the StreamBuilder
@@ -88,18 +93,55 @@ class _SermonScreenState extends State<SermonScreen>
   Future<void> _initializeData() async {
     try {
       final sermons = await widget.sermonService.getSermons();
-      setState(() {
-        _categories = sermons.map((s) => s.category).toSet().toList()..sort();
-        _preachers = sermons.map((s) => s.preacherName).toSet().toList()
-          ..sort();
-        _tags = sermons.expand((s) => s.tags).toSet().toList()..sort();
-        _isLoading = false;
-      });
+      
+      // Extract categories, preachers, and tags from sermons
+      final categorySet = <String>{};
+      final preacherSet = <String>{};
+      final tagSet = <String>{};
+      
+      for (final sermon in sermons) {
+        categorySet.add(sermon.category);
+        preacherSet.add(sermon.preacherName);
+        for (final tag in sermon.tags) {
+          tagSet.add(tag);
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _categories = categorySet.toList()..sort();
+          _preachers = preacherSet.toList()..sort();
+          _tags = tagSet.toList()..sort();
+          
+          // Apply initial filters if provided
+          if (widget.initialCategory != null) {
+            _selectedCategory = widget.initialCategory;
+          }
+          
+          if (widget.initialPreacher != null) {
+            _selectedPreacher = widget.initialPreacher;
+          }
+          
+          _isLoading = false;
+        });
+      }
+      
+      // Play initial sermon if provided
+      if (widget.initialSermonId != null) {
+        _playInitialSermon();
+      }
+      
+      // Force a rebuild to ensure the UI reflects the latest data
+      if (mounted) {
+        setState(() {});
+      }
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -120,6 +162,12 @@ class _SermonScreenState extends State<SermonScreen>
     });
     // The click count is already incremented in the SermonCard onTap
     widget.audioPlayerService.playSermonFromPlaylist(sermon, playlist);
+    // Trigger a refresh after a short delay to update the UI with new counter values
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   void _closeMiniPlayer() {
@@ -159,7 +207,7 @@ class _SermonScreenState extends State<SermonScreen>
                     pinned: true,
                     leading: IconButton(
                       icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => Navigator.of(context).maybePop(),
                     ),
                     flexibleSpace: FlexibleSpaceBar(
                       title: const Text('Sermons'),
@@ -230,6 +278,14 @@ class _SermonScreenState extends State<SermonScreen>
                             },
                           ),
                           const SizedBox(height: 16),
+                          
+                          // Banner ad between search bar and filter section
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: BannerAdWidget(adSize: AdSize.banner),
+                          ),
+                          const SizedBox(height: 16),
+                          
                           // Filter Section Header
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -481,14 +537,38 @@ class _SermonScreenState extends State<SermonScreen>
             padding: EdgeInsets.only(
               bottom: _showMiniPlayer ? 100 : 16,
             ),
-            itemCount: filteredSermons.length,
+            itemCount: filteredSermons.length + (filteredSermons.length ~/ 4), // Add extra items for ads
             itemBuilder: (context, index) {
-              final sermon = filteredSermons[index];
+              // Calculate the actual sermon index accounting for ad positions
+              final int adCount = index ~/ 5; // Every 5th item (after 4 sermons) is an ad
+              final int sermonIndex = index - adCount;
+              
+              // Check if this position should display an ad
+              if (index > 0 && index % 5 == 0) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: BannerAdWidget(adSize: AdSize.mediumRectangle),
+                );
+              }
+              
+              // If we've reached the end of our sermon list, don't try to display a sermon
+              if (sermonIndex >= filteredSermons.length) {
+                return const SizedBox.shrink();
+              }
+              
+              final sermon = filteredSermons[sermonIndex];
               return SermonCard(
                 sermon: sermon,
                 audioPlayerService: widget.audioPlayerService,
                 sermonService: widget.sermonService,
                 onTap: () => _playSermon(sermon, filteredSermons),
+                onRefresh: () {
+                  // Refresh the sermon list to get updated counter values
+                  setState(() {
+                    _isLoading = true;
+                  });
+                  _initializeData();
+                },
               );
             },
           );

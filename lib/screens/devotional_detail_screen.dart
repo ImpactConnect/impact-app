@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/devotional.dart';
 import '../services/devotional_service.dart';
+import '../widgets/ads/banner_ad_widget.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class DevotionalDetailScreen extends StatefulWidget {
   const DevotionalDetailScreen({
@@ -122,7 +124,9 @@ Date: ${widget.devotional.date.toString().split(' ')[0]}
               widget.devotional.content,
               style: const TextStyle(height: 1.6),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            BannerAdWidget(adSize: AdSize.banner),
+            const SizedBox(height: 16),
             Text(
               'Prayer Points',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(

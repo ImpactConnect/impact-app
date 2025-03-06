@@ -6,9 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../models/video_item.dart';
+import '../../services/ad_service.dart';
 import '../../services/video_service.dart';
+import '../../widgets/ads/banner_ad_widget.dart';
 
 class VideoScreen extends StatefulWidget {
   const VideoScreen({Key? key}) : super(key: key);
@@ -20,6 +23,7 @@ class VideoScreen extends StatefulWidget {
 class _VideoScreenState extends State<VideoScreen> {
   final VideoService _videoService = VideoService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final AdService _adService = AdService();
 
   // Currently selected video for in-app playback
   VideoItem? _selectedVideo;
@@ -274,130 +278,81 @@ class _VideoScreenState extends State<VideoScreen> {
     }
   }
 
-  Future<void> _playVideo(VideoItem video) async {
-    try {
-      // Increment view count
-      await _videoService.incrementVideoViews(video.id);
+  bool _hasWatchedAd = false;
 
-      // Extract YouTube video ID
-      final String? videoId =
-          YoutubePlayerController.convertUrlToId(video.videoUrl);
+  // Play a video with ad integration
+  void _playVideo(VideoItem video) async {
+    // Set the selected video first to ensure UI updates properly
+    setState(() {
+      _selectedVideo = video;
+    });
 
-      if (videoId == null) {
-        // If not a valid YouTube URL, launch externally
-        _launchExternalVideo(video);
-        return;
+    // Show a rewarded interstitial ad before playing the video
+    // Only show ad for the first video play in the session
+    if (!_hasWatchedAd) {
+      try {
+        print('Attempting to show rewarded interstitial ad before video playback');
+        final bool adShown = await _adService.showRewardedInterstitialAd(
+          onUserEarnedReward: (ad, reward) {
+            setState(() {
+              _hasWatchedAd = true;
+            });
+            // Initialize the video player after the ad completes
+            _initializeVideoPlayer(video);
+          },
+        );
+
+        // If ad fails to show, just continue with video playback
+        if (!adShown) {
+          print('Failed to show ad, continuing with video playback');
+          _initializeVideoPlayer(video);
+        }
+      } catch (e) {
+        print('Error showing ad: $e');
+        _initializeVideoPlayer(video);
       }
+    } else {
+      // No ad needed, initialize video player directly
+      _initializeVideoPlayer(video);
+    }
+  }
 
-      // Set selected video
-      setState(() {
-        _selectedVideo = video;
-      });
+  // Helper method to initialize the video player
+  void _initializeVideoPlayer(VideoItem video) {
+    // Extract YouTube video ID
+    final String? videoId = YoutubePlayerController.convertUrlToId(video.videoUrl);
 
-      // Initialize YouTube Player Controller with custom options
-      _youtubeController = YoutubePlayerController.fromVideoId(
-        videoId: videoId,
-        autoPlay: true,
-        params: const YoutubePlayerParams(
-          showControls: true,
-          showFullscreenButton: true,
-          enableCaption: true,
-          showVideoAnnotations: false,
-          enableJavaScript: true,
-        ),
-      );
+    if (videoId == null) {
+      // If not a valid YouTube URL, launch externally
+      _launchExternalVideo(video);
+      return;
+    }
 
-      // Allow both portrait and landscape orientations
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
+    print('Initializing YouTube player with video ID: $videoId');
+    
+    // Initialize YouTube Player Controller with custom options
+    _youtubeController = YoutubePlayerController.fromVideoId(
+      videoId: videoId,
+      autoPlay: true,
+      params: const YoutubePlayerParams(
+        showControls: true,
+        showFullscreenButton: true,
+        enableCaption: true,
+        showVideoAnnotations: false,
+        enableJavaScript: true,
+      ),
+    );
 
-      // Navigate to full-screen video player
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => Scaffold(
-            appBar: AppBar(
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              title: Text(
-                _selectedVideo!.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            body: Center(
-              child: YoutubePlayerScaffold(
-                controller: _youtubeController!,
-                builder: (context, player) {
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      player,
-                      // Video details section
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                StreamBuilder<int>(
-                                  stream: _videoService
-                                      .getVideoViews(_selectedVideo!.id),
-                                  builder: (context, snapshot) {
-                                    final views =
-                                        snapshot.data ?? _selectedVideo!.views;
-                                    return Text(
-                                      '${_formatViews(views)} • ${_formatDate(_selectedVideo!.postedDate)} • ${_selectedVideo!.likes} likes',
-                                      style:
-                                          const TextStyle(color: Colors.grey),
-                                    );
-                                  },
-                                ),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.thumb_up),
-                                      onPressed: () =>
-                                          _likeVideo(_selectedVideo!),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.share),
-                                      onPressed: () {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                              content: Text(
-                                                  'Share feature coming soon')),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-      );
-    } catch (e) {
-      print('Error playing video: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to play video: $e')),
+    // Track video play count
+    _videoService.incrementVideoViews(video.id);
+    
+    // Show the video player bottom sheet
+    if (mounted) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => _buildVideoPlayerBottomSheet(),
       );
     }
   }
@@ -530,6 +485,8 @@ class _VideoScreenState extends State<VideoScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+                        BannerAdWidget(adSize: AdSize.banner),
                       ],
                     ),
                   ),
@@ -906,6 +863,13 @@ class _VideoScreenState extends State<VideoScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                ),
+              ),
+              // Banner Ad before All Videos
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                  child: BannerAdWidget(adSize: AdSize.mediumRectangle),
                 ),
               ),
               // All Videos List

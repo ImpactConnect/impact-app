@@ -3,6 +3,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../models/blog_post.dart';
 import '../../services/blog_service.dart';
+import '../../services/ad_service.dart';
 
 class BlogDetailScreen extends StatelessWidget {
   BlogDetailScreen({
@@ -11,6 +12,7 @@ class BlogDetailScreen extends StatelessWidget {
   }) : super(key: key);
   final String postId;
   final BlogService _blogService = BlogService();
+  final AdService _adService = AdService();
 
   void _shareBlogPost(BuildContext context, BlogPost post) {
     final url = 'https://yourchurch.com/blog/${post.id}';
@@ -22,6 +24,9 @@ class BlogDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Show interstitial ad when opening blog post
+    _adService.showInterstitialAd();
+    
     return Scaffold(
       body: FutureBuilder<BlogPost>(
         future: _blogService.getBlogPost(postId),

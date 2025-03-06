@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../models/devotional.dart';
 import '../services/devotional_service.dart';
+import '../widgets/ads/banner_ad_widget.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'devotional_detail_screen.dart';
 
 class DevotionalScreen extends StatefulWidget {
@@ -529,6 +531,12 @@ class _DevotionalScreenState extends State<DevotionalScreen>
                 headerSliverBuilder: (context, innerBoxIsScrolled) => [
                   _buildHeroSection(),
                   _buildSearchBar(),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      child: BannerAdWidget(adSize: AdSize.banner),
+                    ),
+                  ),
                   if (_searchResults.isEmpty) _buildTabBar(),
                 ],
                 body: _searchResults.isNotEmpty

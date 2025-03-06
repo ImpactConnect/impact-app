@@ -2,16 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/sermon.dart';
 import '../utils/toast_utils.dart';
+import 'ad_service.dart';
 
 class SermonService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _prefsKey = 'sermons';
+  final AdService _adService = AdService();
 
   Future<void> _saveToPrefs(Sermon sermon) async {
     final prefs = await SharedPreferences.getInstance();
@@ -85,11 +88,12 @@ class SermonService {
       // Sort by date
       sermons.sort((a, b) => b.dateCreated.compareTo(a.dateCreated));
 
-      // Merge with local data
+      // Merge with local data but preserve Firestore counter values
       final localSermons = await _loadFromPrefs();
       for (var localSermon in localSermons) {
         final index = sermons.indexWhere((s) => s.id == localSermon.id);
         if (index != -1) {
+          // Keep the Firestore counter values, but use local values for other fields
           sermons[index] = Sermon(
             id: localSermon.id,
             title: sermons[index].title,
@@ -102,6 +106,8 @@ class SermonService {
             isBookmarked: localSermon.isBookmarked,
             isDownloaded: localSermon.isDownloaded,
             localAudioPath: localSermon.localAudioPath,
+            clickCount: sermons[index].clickCount,  // Keep Firestore value
+            downloadCount: sermons[index].downloadCount,  // Keep Firestore value
           );
         }
       }
@@ -140,33 +146,107 @@ class SermonService {
 
   Future<void> downloadSermon(Sermon sermon) async {
     try {
-      ToastUtils.showToast('Download started for "${sermon.title}"');
-
+      print('Starting sermon download process for: ${sermon.title}');
+      
+      // Show download started toast
+      ToastUtils.showSuccessToast('Download started for "${sermon.title}"');
+      
+      // Show an interstitial ad before downloading
+      print('Attempting to show interstitial ad before download');
+      bool adShown = false;
+      try {
+        if (!kIsWeb) {
+          adShown = await _adService.showInterstitialAd();
+          print('Interstitial ad shown: $adShown');
+        }
+      } catch (adError) {
+        print('Error showing interstitial ad: $adError');
+        // Continue with download even if ad fails
+      }
+      
+      // Skip actual download on web platform
+      if (kIsWeb) {
+        // Simulate download for web
+        await Future.delayed(const Duration(seconds: 2));
+        sermon.isDownloaded = true;
+        sermon.localAudioPath = 'simulated_path';
+        await _saveToPrefs(sermon);
+        ToastUtils.showSuccessToast('Downloaded "${sermon.title}"');
+        print('Simulated download for web platform: ${sermon.title}');
+        return;
+      }
+      
+      // Get the app's documents directory
       final appDir = await getApplicationDocumentsDirectory();
       final fileName = '${sermon.id}.mp3';
-      final file = File('${appDir.path}/$fileName');
+      final filePath = '${appDir.path}/$fileName';
 
-      if (!file.existsSync()) {
-        final response = await http.get(Uri.parse(sermon.audioUrl));
-        await file.writeAsBytes(response.bodyBytes);
+      // Check if file already exists
+      final file = File(filePath);
+      if (file.existsSync()) {
+        sermon.isDownloaded = true;
+        sermon.localAudioPath = filePath;
+        await _saveToPrefs(sermon);
+        ToastUtils.showSuccessToast('Sermon already downloaded');
+        print('Sermon already downloaded: ${sermon.title}');
+        return;
       }
 
-      sermon.isDownloaded = true;
-      sermon.localAudioPath = file.path;
-      
-      // Increment download counter
-      sermon.downloadCount += 1;
-      
-      // Update Firestore
-      await _updateSermonCounters(sermon);
-      
-      await _saveToPrefs(sermon);
+      print('Downloading sermon file from: ${sermon.audioUrl}');
+      // Download the file
+      final response = await http.get(Uri.parse(sermon.audioUrl));
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download sermon: HTTP ${response.statusCode}');
+      }
 
-      ToastUtils.showSuccessToast('Download completed for "${sermon.title}"');
+      // Write the file
+      await file.writeAsBytes(response.bodyBytes);
+      print('Sermon file downloaded and saved to: $filePath');
+
+      // Update sermon data
+      sermon.isDownloaded = true;
+      sermon.localAudioPath = filePath;
+      sermon.downloadCount++;
+
+      // Save to local storage and update counters
+      await _saveToPrefs(sermon);
+      await _updateSermonCounters(sermon);
+
+      print('Sermon download completed successfully: ${sermon.title}');
+      ToastUtils.showSuccessToast('Downloaded "${sermon.title}"');
     } catch (e) {
       print('Error downloading sermon: $e');
       ToastUtils.showErrorToast('Failed to download "${sermon.title}"');
       rethrow;
+    }
+  }
+
+  Future<void> playSermon(Sermon sermon) async {
+    try {
+      print('Starting sermon playback for: ${sermon.title}');
+      
+      // Show a rewarded video ad before playing
+      print('Attempting to show rewarded video ad before playback');
+      bool adShown = false;
+      try {
+        if (!kIsWeb) {
+          adShown = await _adService.showRewardedVideoAd();
+          print('Rewarded video ad shown: $adShown');
+        }
+      } catch (adError) {
+        print('Error showing rewarded video ad: $adError');
+        // Continue with playback even if ad fails
+      }
+      
+      // Update sermon data
+      sermon.clickCount++;
+
+      // Save to local storage and update counters
+      await _saveToPrefs(sermon);
+      await _updateSermonCounters(sermon);
+    } catch (e) {
+      print('Error incrementing click count: $e');
+      // Don't show error toast to user as this is a background operation
     }
   }
 
@@ -188,6 +268,7 @@ class SermonService {
   
   Future<void> _updateSermonCounters(Sermon sermon) async {
     try {
+      // Update in Firestore
       await _firestore.collection('sermons').doc(sermon.id).update({
         'clickCount': sermon.clickCount,
         'downloadCount': sermon.downloadCount,

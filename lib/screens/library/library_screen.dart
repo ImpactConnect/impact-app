@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../models/book.dart';
+import '../../services/ad_service.dart';
 import '../../services/book_service.dart';
+import '../../widgets/ads/banner_ad_widget.dart';
 import '../../widgets/bottom_nav_bar.dart';
 import '../../widgets/library/book_card.dart';
 import '../../widgets/library/book_grid.dart';
 import '../../widgets/library/filter_section.dart';
 import '../../widgets/library/library_hero.dart';
 import '../../widgets/library/search_bar.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({Key? key}) : super(key: key);
@@ -19,12 +22,14 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen>
     with SingleTickerProviderStateMixin {
   final BookService _bookService = BookService();
+  final AdService _adService = AdService();
   late TabController _tabController;
   String? _searchQuery;
   String? _selectedCategory;
   String? _selectedAuthor;
   List<String>? _selectedTopics;
   final ScrollController _scrollController = ScrollController();
+  bool _showPremiumContent = false;
 
   bool get _hasActiveFilters =>
       _selectedCategory != null ||
@@ -56,63 +61,63 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   Widget _buildBookSection(
       String title, Future<List<Book>> Function() getBooks) {
-    return FutureBuilder<List<Book>>(
-      future: getBooks(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 200,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
                 title,
-                style: Theme.of(context).textTheme.titleLarge,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            SizedBox(
-              height: 280,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: snapshot.data!.length,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 16),
-                    child: SizedBox(
-                      width: 160,
-                      child: BookCard(book: snapshot.data![index]),
-                    ),
-                  );
+              TextButton(
+                onPressed: () {
+                  // Navigate to see all books in this category
                 },
+                child: const Text('See All'),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 200,
+          child: FutureBuilder<List<Book>>(
+            future: getBooks(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text('No books available'));
+              }
+
+              final books = snapshot.data!;
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: books.length,
+                itemBuilder: (context, index) {
+                  return BookCard(book: books[index]);
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   title: const Text('Library'),
-      //   leading: IconButton(
-      //     icon: const Icon(Icons.arrow_back),
-      //     onPressed: () => Navigator.of(context).pop(),
-      //   ),
-      //   elevation: 0,
-      //   backgroundColor: Colors.transparent,
-      // ),
       body: SafeArea(
         child: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) {
@@ -133,10 +138,19 @@ class _LibraryScreenState extends State<LibraryScreen>
               SliverToBoxAdapter(
                 child: Column(
                   children: [
+                    _buildBookSection('New Books', 
+                        () => _bookService.getNewBooks()),
                     _buildBookSection('Trending Books',
                         () => _bookService.getTrendingBooks()),
                     _buildBookSection('Most Downloaded',
                         () => _bookService.getMostDownloadedBooks()),
+                    
+                    // Banner ad after 3 rows of book lists
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: BannerAdWidget(adSize: AdSize.banner),
+                    ),
+                    
                     _buildBookSection('Recommended',
                         () => _bookService.getRecommendedBooks()),
                   ],

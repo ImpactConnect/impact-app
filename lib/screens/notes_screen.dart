@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/note_model.dart';
 import '../services/note_service.dart';
+import '../widgets/ads/banner_ad_widget.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'note_editor_screen.dart';
 import 'note_view_screen.dart';
 
@@ -103,6 +105,13 @@ class _NotesScreenState extends State<NotesScreen> {
                 ),
                 onChanged: _filterNotes,
               ),
+            ),
+          ),
+          // Banner Ad under search bar
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: BannerAdWidget(adSize: AdSize.banner),
             ),
           ),
           SliverList(

@@ -13,11 +13,13 @@ class SermonCard extends StatelessWidget {
     required this.audioPlayerService,
     required this.sermonService,
     required this.onTap,
+    this.onRefresh,
   }) : super(key: key);
   final Sermon sermon;
   final AudioPlayerService audioPlayerService;
   final SermonService sermonService;
   final VoidCallback onTap;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -90,93 +92,106 @@ class SermonCard extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(sermon.preacherName),
+            Text(
+              sermon.preacherName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.play_circle_outline, size: 14, color: Colors.blue[700]),
-                const SizedBox(width: 4),
-                Text(
-                  '${sermon.clickCount} plays',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Icon(Icons.download_outlined, size: 14, color: Colors.green[700]),
-                const SizedBox(width: 4),
-                Text(
-                  '${sermon.downloadCount} downloads',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
+            // Wrap the counter row in a LayoutBuilder to constrain width
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.play_circle_outline, size: 14, color: Colors.blue[700]),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${sermon.clickCount}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(Icons.download_outlined, size: 14, color: Colors.green[700]),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${sermon.downloadCount}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                );
+              }
             ),
           ],
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) async {
-                switch (value) {
-                  case 'download':
-                    if (sermon.isDownloaded) {
-                      await sermonService.deleteDownloadedSermon(sermon);
-                    } else {
-                      await sermonService.downloadSermon(sermon);
-                    }
-                    break;
-                  case 'bookmark':
-                    await sermonService.toggleBookmark(sermon);
-                    break;
-                  case 'share':
-                    // Add share functionality here
-                    break;
-                }
-              },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                PopupMenuItem<String>(
-                  value: 'download',
-                  child: ListTile(
-                    leading: Icon(
-                      sermon.isDownloaded ? Icons.delete : Icons.download,
-                      color: sermon.isDownloaded ? Colors.red : Colors.blue,
-                    ),
-                    title: Text(sermon.isDownloaded ? 'Delete' : 'Download'),
-                    contentPadding: EdgeInsets.zero,
+        trailing: SizedBox(
+          width: 40,
+          child: PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) async {
+              switch (value) {
+                case 'download':
+                  if (sermon.isDownloaded) {
+                    await sermonService.deleteDownloadedSermon(sermon);
+                  } else {
+                    await sermonService.downloadSermon(sermon);
+                  }
+                  // Trigger a refresh in the parent widget if callback is provided
+                  if (onRefresh != null) {
+                    onRefresh!();
+                  }
+                  break;
+                case 'bookmark':
+                  await sermonService.toggleBookmark(sermon);
+                  break;
+                case 'share':
+                  // Add share functionality here
+                  break;
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'download',
+                child: ListTile(
+                  leading: Icon(
+                    sermon.isDownloaded ? Icons.delete : Icons.download,
+                    color: sermon.isDownloaded ? Colors.red : Colors.blue,
                   ),
+                  title: Text(sermon.isDownloaded ? 'Delete' : 'Download'),
+                  contentPadding: EdgeInsets.zero,
                 ),
-                PopupMenuItem<String>(
-                  value: 'bookmark',
-                  child: ListTile(
-                    leading: Icon(
-                      sermon.isBookmarked
-                          ? Icons.bookmark_remove
-                          : Icons.bookmark_add,
-                      color: Colors.amber,
-                    ),
-                    title: Text(
-                        sermon.isBookmarked ? 'Remove Bookmark' : 'Bookmark'),
-                    contentPadding: EdgeInsets.zero,
+              ),
+              PopupMenuItem<String>(
+                value: 'bookmark',
+                child: ListTile(
+                  leading: Icon(
+                    sermon.isBookmarked
+                        ? Icons.bookmark_remove
+                        : Icons.bookmark_add,
+                    color: Colors.amber,
                   ),
+                  title: Text(
+                      sermon.isBookmarked ? 'Remove Bookmark' : 'Bookmark'),
+                  contentPadding: EdgeInsets.zero,
                 ),
-                const PopupMenuItem<String>(
-                  value: 'share',
-                  child: ListTile(
-                    leading: Icon(Icons.share),
-                    title: Text('Share'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'share',
+                child: ListTile(
+                  leading: Icon(Icons.share),
+                  title: Text('Share'),
+                  contentPadding: EdgeInsets.zero,
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
     );
   }

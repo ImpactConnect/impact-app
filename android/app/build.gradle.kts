@@ -51,4 +51,5 @@ dependencies {
     implementation("androidx.multidex:multidex:2.0.1")
     implementation("com.google.android.gms:play-services-base:18.3.0")
     implementation("com.google.android.gms:play-services-basement:18.3.0")
+    implementation("com.google.android.gms:play-services-ads:22.6.0") // Google Mobile Ads
 }

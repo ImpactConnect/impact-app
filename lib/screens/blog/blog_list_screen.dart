@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../models/blog_post.dart';
 import '../../services/blog_service.dart';
+import '../../services/ad_service.dart';
+import '../../widgets/ads/banner_ad_widget.dart';
 import 'blog_detail_screen.dart';
 
 class BlogListScreen extends StatefulWidget {
@@ -95,6 +98,14 @@ class _BlogListScreenState extends State<BlogListScreen> {
             ),
           ),
 
+          // Banner Ad before blog posts list
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+              child: BannerAdWidget(adSize: AdSize.mediumRectangle),
+            ),
+          ),
+
           // Blog Posts List
           StreamBuilder<List<BlogPost>>(
             stream: _blogService.getBlogPosts(),
@@ -122,10 +133,23 @@ class _BlogListScreenState extends State<BlogListScreen> {
               return SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final post = filteredPosts[index];
+                    // Show banner ad after every 3 blog posts
+                    if (index > 0 && index % 3 == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                        child: BannerAdWidget(adSize: AdSize.banner),
+                      );
+                    }
+                    
+                    // Calculate the actual post index (accounting for ad insertions)
+                    final postIndex = index - (index ~/ 3);
+                    if (postIndex >= filteredPosts.length) return null;
+                    
+                    final post = filteredPosts[postIndex];
                     return _BlogPostCard(post: post);
                   },
-                  childCount: filteredPosts.length,
+                  // Adjust child count to account for ads
+                  childCount: filteredPosts.length + (filteredPosts.length ~/ 3),
                 ),
               );
             },
