@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/book.dart';
+import '../../screens/library/book_detail_screen.dart';
 import '../../services/ad_service.dart';
 import '../../services/book_service.dart';
 import '../../widgets/ads/banner_ad_widget.dart';
@@ -86,7 +87,7 @@ class _LibraryScreenState extends State<LibraryScreen>
           ),
         ),
         SizedBox(
-          height: 200,
+          height: 280, // Increased height to accommodate book covers
           child: FutureBuilder<List<Book>>(
             future: getBooks(),
             builder: (context, snapshot) {
@@ -103,9 +104,97 @@ class _LibraryScreenState extends State<LibraryScreen>
               final books = snapshot.data!;
               return ListView.builder(
                 scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 itemCount: books.length,
                 itemBuilder: (context, index) {
-                  return BookCard(book: books[index]);
+                  final book = books[index];
+                  // Using a custom card layout for horizontal scrolling
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => BookDetailScreen(book: book),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 160,
+                      margin: const EdgeInsets.only(right: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Book cover image
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8.0),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(8.0),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: book.coverUrl.isNotEmpty
+                                    ? Image.network(
+                                        book.coverUrl,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return const Center(
+                                            child: Icon(Icons.image_not_supported, size: 40),
+                                          );
+                                        },
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Center(
+                                            child: CircularProgressIndicator(
+                                              value: loadingProgress.expectedTotalBytes != null
+                                                  ? loadingProgress.cumulativeBytesLoaded /
+                                                      loadingProgress.expectedTotalBytes!
+                                                  : null,
+                                            ),
+                                          );
+                                        },
+                                      )
+                                    : const Center(
+                                        child: Icon(Icons.book, size: 40),
+                                      ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Book title
+                          Text(
+                            book.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          // Book author
+                          Text(
+                            book.author,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 },
               );
             },
@@ -138,19 +227,13 @@ class _LibraryScreenState extends State<LibraryScreen>
               SliverToBoxAdapter(
                 child: Column(
                   children: [
-                    _buildBookSection('New Books', 
-                        () => _bookService.getNewBooks()),
                     _buildBookSection('Trending Books',
                         () => _bookService.getTrendingBooks()),
-                    _buildBookSection('Most Downloaded',
-                        () => _bookService.getMostDownloadedBooks()),
-                    
-                    // Banner ad after 3 rows of book lists
+                    // Banner ad after book list
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: BannerAdWidget(adSize: AdSize.banner),
                     ),
-                    
                     _buildBookSection('Recommended',
                         () => _bookService.getRecommendedBooks()),
                   ],

@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default rule - deny all access unless explicitly allowed
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Bug reports collection - allow anyone to create reports
+    match /bug_reports/{reportId} {
+      // Allow anyone to create a new bug report (no authentication required)
+      allow create: if 
+        // Validate required fields
+        request.resource.data.keys().hasAll(['issueType', 'comments', 'timestamp', 'status']) &&
+        // Validate field types
+        request.resource.data.issueType is string &&
+        request.resource.data.comments is string &&
+        request.resource.data.timestamp is timestamp &&
+        request.resource.data.status is string &&
+        // Ensure status is set to 'new' for new reports
+        request.resource.data.status == 'new';
+      
+      // Only allow admins to read or update bug reports
+      allow read, update, delete: if request.auth != null && request.auth.token.admin == true;
+    }
+    
+    // Other collections with appropriate permissions
+    // Add rules for your other collections here
+  }
+}
