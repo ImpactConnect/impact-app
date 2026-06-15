@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -43,141 +44,123 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     
     setState(() {
       _isAdLoadInProgress = true;
-      _adStatus = 'Loading ad...';
+      _adStatus = 'Checking network...';
     });
     
-    try {
-      print('Creating banner ad with size: ${widget.adSize}');
-      _bannerAd = _adService.createBannerAd(
-        size: widget.adSize,
-        onAdLoaded: (Ad ad) {
-          print('Banner ad loaded successfully: ${ad.responseInfo}');
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = true;
-              _isAdLoadInProgress = false;
-              _adStatus = 'Ad loaded';
-              _retryAttempt = 0; // Reset retry counter on success
-            });
-          }
-        },
-        onAdFailedToLoad: (Ad ad, LoadAdError error) {
-          print('Banner ad failed to load: $error');
-          ad.dispose();
-          
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = false;
-              _isAdLoadInProgress = false;
-              _adStatus = 'Failed to load: ${error.message}';
-              _retryAttempt++;
-            });
-          }
-          
-          // Retry loading the ad after a delay, with exponential backoff
-          if (_retryAttempt <= _maxRetryAttempts) {
-            int delaySeconds = _retryAttempt * 5; // 5, 10, 15 seconds
-            print('Retrying banner ad load in $delaySeconds seconds (attempt $_retryAttempt)');
-            Future.delayed(Duration(seconds: delaySeconds), () {
-              if (mounted) {
-                _loadBannerAd();
-              }
-            });
-          } else {
-            print('Maximum retry attempts reached for banner ad');
-          }
-        },
-      );
-
-      print('Calling load() on banner ad');
-      _bannerAd?.load();
-    } catch (e) {
-      print('Error creating banner ad: $e');
+    // Skip ad loading on web platform
+    if (kIsWeb) {
       if (mounted) {
         setState(() {
           _isAdLoadInProgress = false;
-          _adStatus = 'Error: $e';
-          _retryAttempt++;
+          _isAdLoaded = false;
+          _adStatus = 'Ads not supported on web';
         });
+      }
+      return;
+    }
+    
+    // Check for network connectivity on non-web platforms
+    InternetAddress.lookup('google.com').then((result) {
+      if (result.isEmpty || result[0].rawAddress.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _isAdLoadInProgress = false;
+            _isAdLoaded = false;
+            _adStatus = 'No internet connection';
+          });
+        }
+        return;
       }
       
-      // Retry after error with exponential backoff
-      if (_retryAttempt <= _maxRetryAttempts) {
-        int delaySeconds = _retryAttempt * 5;
-        Future.delayed(Duration(seconds: delaySeconds), () {
-          if (mounted) {
-            _loadBannerAd();
-          }
+      try {
+        print('Creating banner ad with size: ${widget.adSize}');
+        _bannerAd = _adService.createBannerAd(
+          size: widget.adSize,
+          onAdLoaded: (Ad ad) {
+            print('Banner ad loaded successfully: ${ad.responseInfo}');
+            if (mounted) {
+              setState(() {
+                _isAdLoaded = true;
+                _isAdLoadInProgress = false;
+                _adStatus = 'Ad loaded';
+                _retryAttempt = 0;
+              });
+            }
+          },
+          onAdFailedToLoad: (Ad ad, LoadAdError error) {
+            print('Banner ad failed to load: $error');
+            ad.dispose();
+            
+            if (mounted) {
+              setState(() {
+                _isAdLoaded = false;
+                _isAdLoadInProgress = false;
+                _adStatus = 'Failed to load ad';
+                _retryAttempt++;
+              });
+            }
+            
+            // Retry loading the ad after a delay, with exponential backoff
+            if (_retryAttempt <= _maxRetryAttempts) {
+              int delaySeconds = _retryAttempt * 5;
+              print('Retrying banner ad load in $delaySeconds seconds (attempt $_retryAttempt)');
+              Future.delayed(Duration(seconds: delaySeconds), () {
+                if (mounted) {
+                  _loadBannerAd();
+                }
+              });
+            }
+          },
+        );
+
+        print('Calling load() on banner ad');
+        _bannerAd?.load();
+      } catch (e) {
+        print('Error creating banner ad: $e');
+        if (mounted) {
+          setState(() {
+            _isAdLoadInProgress = false;
+            _adStatus = 'Error: $e';
+            _retryAttempt++;
+          });
+        }
+        
+        // Retry after error with exponential backoff
+        if (_retryAttempt <= _maxRetryAttempts) {
+          int delaySeconds = _retryAttempt * 5;
+          Future.delayed(Duration(seconds: delaySeconds), () {
+            if (mounted) {
+              _loadBannerAd();
+            }
+          });
+        }
+      }
+    }).catchError((e) {
+      print('Network error: $e');
+      if (mounted) {
+        setState(() {
+          _isAdLoadInProgress = false;
+          _isAdLoaded = false;
+          _adStatus = 'No internet connection';
         });
       }
-    }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Skip ad creation on web platform
-    if (kIsWeb) {
-      return Container(
-        height: widget.adSize.height.toDouble(),
-        width: MediaQuery.of(context).size.width,
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: const Center(
-          child: Text(
-            'Advertisement',
-            style: TextStyle(color: Colors.grey),
-          ),
-        ),
-      );
+    // Skip ad creation on web platform or when ad is not loaded
+    if (kIsWeb || !_isAdLoaded) {
+      return const SizedBox.shrink(); // Return an empty widget when ad is not loaded
     }
 
-    if (_bannerAd == null || !_isAdLoaded) {
-      return Container(
-        height: widget.adSize.height.toDouble(),
-        width: MediaQuery.of(context).size.width,
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Advertisement',
-                style: TextStyle(color: Colors.grey),
-              ),
-              if (kDebugMode) 
-                Text(
-                  _adStatus,
-                  style: const TextStyle(fontSize: 10, color: Colors.grey),
-                ),
-              if (_retryAttempt > 0 && kDebugMode)
-                Text(
-                  'Retry attempt: $_retryAttempt/$_maxRetryAttempts',
-                  style: const TextStyle(fontSize: 10, color: Colors.red),
-                ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Wrap AdWidget in RepaintBoundary to prevent rendering issues with Impeller
+    // Only show container when ad is loaded
     return Container(
       width: MediaQuery.of(context).size.width,
-      height: _bannerAd!.size.height.toDouble(),
+      height: widget.adSize.height.toDouble(),
       color: Colors.transparent,
       child: RepaintBoundary(
-        child: Center(
-          child: SizedBox(
-            width: _bannerAd!.size.width.toDouble(),
-            height: _bannerAd!.size.height.toDouble(),
-            child: AdWidget(ad: _bannerAd!),
-          ),
-        ),
+        child: AdWidget(ad: _bannerAd!),
       ),
     );
   }

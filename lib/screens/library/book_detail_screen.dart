@@ -3,6 +3,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../models/book.dart';
 import '../../services/book_service.dart';
 import 'pdf_reader_screen.dart';
+import '../../services/ad_service.dart'; // Import AdService
 
 class BookDetailScreen extends StatefulWidget {
   const BookDetailScreen({
@@ -17,6 +18,7 @@ class BookDetailScreen extends StatefulWidget {
 
 class _BookDetailScreenState extends State<BookDetailScreen> {
   final BookService _bookService = BookService();
+  final AdService _adService = AdService(); // Initialize AdService
   bool _isBookmarked = false;
   bool _isDownloaded = false;
 
@@ -67,7 +69,11 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     );
   }
 
-  void _openReader() {
+  Future<void> _openReader() async {
+    // Show interstitial ad
+    await _adService.showInterstitialAd();
+
+    // Navigate to the PDF reader screen
     Navigator.push(
       context,
       MaterialPageRoute(

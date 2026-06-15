@@ -22,6 +22,10 @@
         android:name="${applicationName}"
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
+        <property
+            android:name="android.adservices.AD_SERVICES_CONFIG"
+            android:resource="@xml/ga_ad_services_config"
+            tools:replace="android:resource" />
         
         <!-- Fix conflict between AdMob and Firebase libraries -->
         <property
@@ -32,11 +36,18 @@
         <!-- AdMob app ID -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/> <!-- Replace with your actual AdMob app ID in production -->
+            android:value="ca-app-pub-3038318925069349~1635494761"/>
         
         <meta-data
             android:name="com.onesignal.appid"
             android:value="44ffcdfa-336a-4785-acbf-b09a23ad8a91" />
+        
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="@string/default_notification_channel_id" />
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
 
         <activity
             android:name=".MainActivity"

@@ -1,0 +1,61 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
+
+import 'screens/home_screen.dart';
+import 'services/ad_service.dart';
+import 'services/audio_player_service.dart';
+import 'services/sermon_service.dart';
+
+void main() async {
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  
+  await Firebase.initializeApp();
+  
+  // Initialize services
+  final adService = AdService();
+  final audioPlayerService = AudioPlayerService();
+  final sermonService = SermonService();
+  
+  // Initialize ad service
+  await adService.initialize();
+  
+  // Remove the splash screen
+  FlutterNativeSplash.remove();
+  
+  runApp(MyApp(
+    adService: adService,
+    audioPlayerService: audioPlayerService,
+    sermonService: sermonService,
+  ));
+}
+
+class MyApp extends StatelessWidget {
+  final AdService adService;
+  final AudioPlayerService audioPlayerService;
+  final SermonService sermonService;
+
+  const MyApp({
+    Key? key,
+    required this.adService,
+    required this.audioPlayerService,
+    required this.sermonService,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Church Mobile',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      home: HomeScreen(
+        adService: adService,
+        audioPlayerService: audioPlayerService,
+        sermonService: sermonService,
+      ),
+    );
+  }
+}

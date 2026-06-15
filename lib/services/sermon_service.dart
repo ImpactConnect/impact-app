@@ -50,22 +50,64 @@ class SermonService {
     String? searchQuery,
   }) async {
     try {
-      final Query query = _firestore.collection('sermons');
+      List<Sermon> sermons;
+      
+      // Check for network connectivity (skip on web)
+      bool hasInternet = true;
+      if (!kIsWeb) {
+        try {
+          final result = await InternetAddress.lookup('google.com');
+          hasInternet = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+        } catch (e) {
+          hasInternet = false;
+        }
+      }
+      
+      if (!hasInternet && !kIsWeb) {
+        print('No internet connection, using local data');
+        // Load only from local storage when offline
+        sermons = await _loadFromPrefs();
+      } else {
+        // Get from Firestore when online
+        final Query query = _firestore.collection('sermons');
+        final QuerySnapshot snapshot = await query.get();
+        sermons = snapshot.docs.map((doc) => Sermon.fromFirestore(doc)).toList();
 
-      // Get all sermons and filter in memory to avoid index requirements
-      final QuerySnapshot snapshot = await query.get();
-      List<Sermon> sermons =
-          snapshot.docs.map((doc) => Sermon.fromFirestore(doc)).toList();
+        // Merge with local data but preserve Firestore counter values
+        final localSermons = await _loadFromPrefs();
+        for (var localSermon in localSermons) {
+          final index = sermons.indexWhere((s) => s.id == localSermon.id);
+          if (index != -1) {
+            // Keep the Firestore counter values, but use local values for other fields
+            sermons[index] = Sermon(
+              id: localSermon.id,
+              title: sermons[index].title,
+              preacherName: sermons[index].preacherName,
+              category: sermons[index].category,
+              tags: sermons[index].tags,
+              thumbnailUrl: sermons[index].thumbnailUrl,
+              audioUrl: sermons[index].audioUrl,
+              dateCreated: sermons[index].dateCreated,
+              isBookmarked: localSermon.isBookmarked,
+              isDownloaded: localSermon.isDownloaded,
+              localAudioPath: localSermon.localAudioPath,
+              clickCount: sermons[index].clickCount,  // Keep Firestore value
+              downloadCount: sermons[index].downloadCount,  // Keep Firestore value
+            );
+          } else {
+            // Add local sermons that aren't in Firestore
+            sermons.add(localSermon);
+          }
+        }
+      }
 
       // Apply filters in memory
       if (category != null) {
-        sermons =
-            sermons.where((sermon) => sermon.category == category).toList();
+        sermons = sermons.where((sermon) => sermon.category == category).toList();
       }
 
       if (preacher != null) {
-        sermons =
-            sermons.where((sermon) => sermon.preacherName == preacher).toList();
+        sermons = sermons.where((sermon) => sermon.preacherName == preacher).toList();
       }
 
       if (tags != null && tags.isNotEmpty) {
@@ -88,42 +130,22 @@ class SermonService {
       // Sort by date
       sermons.sort((a, b) => b.dateCreated.compareTo(a.dateCreated));
 
-      // Merge with local data but preserve Firestore counter values
-      final localSermons = await _loadFromPrefs();
-      for (var localSermon in localSermons) {
-        final index = sermons.indexWhere((s) => s.id == localSermon.id);
-        if (index != -1) {
-          // Keep the Firestore counter values, but use local values for other fields
-          sermons[index] = Sermon(
-            id: localSermon.id,
-            title: sermons[index].title,
-            preacherName: sermons[index].preacherName,
-            category: sermons[index].category,
-            tags: sermons[index].tags,
-            thumbnailUrl: sermons[index].thumbnailUrl,
-            audioUrl: sermons[index].audioUrl,
-            dateCreated: sermons[index].dateCreated,
-            isBookmarked: localSermon.isBookmarked,
-            isDownloaded: localSermon.isDownloaded,
-            localAudioPath: localSermon.localAudioPath,
-            clickCount: sermons[index].clickCount,  // Keep Firestore value
-            downloadCount: sermons[index].downloadCount,  // Keep Firestore value
-          );
-        }
-      }
-
       return sermons;
+    } on SocketException {
+      print('Network error detected, using local data');
+      // Load only from local storage when offline
+      return await _loadFromPrefs();
     } catch (e) {
       print('Error fetching sermons: $e');
       ToastUtils.showErrorToast('Error loading sermons');
 
-      // On error, try to return cached data
+      // Always try to return cached data
       final cachedSermons = await _loadFromPrefs();
       if (cachedSermons.isNotEmpty) {
         return cachedSermons;
       }
-      // If no cached data, create some mock data
-      return _createMockSermons();
+      // If no cached data, return empty list
+      return [];
     }
   }
 
@@ -221,6 +243,28 @@ class SermonService {
     }
   }
 
+  Future<void> deleteDownloadedSermon(Sermon sermon) async {
+    if (sermon.localAudioPath == null) return;
+
+    try {
+      final file = File(sermon.localAudioPath!);
+      if (await file.exists()) {
+        await file.delete();
+        print('Deleted downloaded sermon file: ${sermon.title}');
+      }
+
+      sermon.isDownloaded = false;
+      sermon.localAudioPath = null;
+      await _saveToPrefs(sermon);
+
+      ToastUtils.showSuccessToast('Deleted "${sermon.title}"');
+    } catch (e) {
+      print('Error deleting downloaded sermon: $e');
+      ToastUtils.showErrorToast('Failed to delete "${sermon.title}"');
+      rethrow;
+    }
+  }
+
   Future<void> playSermon(Sermon sermon) async {
     try {
       print('Starting sermon playback for: ${sermon.title}');
@@ -244,6 +288,9 @@ class SermonService {
       // Save to local storage and update counters
       await _saveToPrefs(sermon);
       await _updateSermonCounters(sermon);
+
+      // Play the sermon using the audio player service
+      // await widget.audioPlayerService.playSermon(sermon);
     } catch (e) {
       print('Error incrementing click count: $e');
       // Don't show error toast to user as this is a background operation
@@ -276,27 +323,6 @@ class SermonService {
     } catch (e) {
       print('Error updating sermon counters in Firestore: $e');
       // We don't rethrow here to prevent disrupting the user experience
-    }
-  }
-
-  Future<void> deleteDownloadedSermon(Sermon sermon) async {
-    try {
-      if (sermon.localAudioPath != null) {
-        final file = File(sermon.localAudioPath!);
-        if (file.existsSync()) {
-          await file.delete();
-        }
-      }
-
-      sermon.isDownloaded = false;
-      sermon.localAudioPath = null;
-      await _saveToPrefs(sermon);
-
-      ToastUtils.showSuccessToast('Deleted "${sermon.title}" from downloads');
-    } catch (e) {
-      print('Error deleting downloaded sermon: $e');
-      ToastUtils.showErrorToast('Failed to delete "${sermon.title}"');
-      rethrow;
     }
   }
 

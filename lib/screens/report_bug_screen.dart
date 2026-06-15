@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/toast_utils.dart';
 import '../widgets/bottom_nav_bar.dart';
 
@@ -80,6 +81,14 @@ class _ReportBugScreenState extends State<ReportBugScreen> {
           ToastUtils.showToast('Error submitting bug report: $e');
         }
       }
+    }
+  }
+
+  Future<void> _launchURL(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      throw 'Could not launch $url';
     }
   }
 
@@ -209,6 +218,23 @@ class _ReportBugScreenState extends State<ReportBugScreen> {
             ],
           ),
         ),
+      ),
+      floatingActionButton: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          FloatingActionButton(
+            onPressed: () async {
+              final whatsappUrl = 'https://wa.me/2347032196863?text=Hi,%20I%20am%20chatting%20you%20from%20the%20Impact%20Connect%20App';
+              await _launchURL(whatsappUrl);
+            },
+            child: Image.asset(
+              'assets/images/whatsapp_icon.png',
+              width: 24,
+              height: 24,
+            ),
+            backgroundColor: Colors.green,
+          ),
+        ],
       ),
       bottomNavigationBar: const BottomNavBar(currentIndex: 3),
     );

@@ -217,7 +217,7 @@ class BookService {
     try {
       // Show interstitial ad
       await _adService.showInterstitialAd();
-      
+
       // Update book view count in Firestore
       await _firestore.collection('books').doc(bookId).update({
         'viewCount': FieldValue.increment(1),

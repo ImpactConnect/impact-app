@@ -7,8 +7,8 @@ plugins {
 }
 
 android {
-    namespace = "com.example.church_mobile"
-    compileSdk = flutter.compileSdkVersion
+    namespace = "com.impactconnect.app"
+    compileSdk = 36
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -20,21 +20,31 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.church_mobile"
-        minSdk = 21
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        applicationId = "com.impactconnect.app"
+        minSdk = flutter.minSdkVersion
+        targetSdk = 36
+        versionCode = 7
+        versionName = "1.0.3"
         multiDexEnabled = true
         ndk {
-            ndkVersion = "28.0.13004108"
+            ndkVersion = "26.1.10909125"
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("../../release.keystore")
+            storePassword = "07032196863"
+            keyAlias = "release"
+            keyPassword = "07032196863"
         }
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
     }
 }
@@ -56,7 +66,7 @@ android {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.0")
+
     implementation(platform("com.google.firebase:firebase-bom:32.7.1"))
     implementation("com.google.firebase:firebase-analytics-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")

@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+// import 'package:youtube_player_iframe/youtube_player_iframe.dart'; // Temporarily commented out due to web compatibility issues
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../models/video_item.dart';
@@ -37,7 +37,7 @@ class _VideoScreenState extends State<VideoScreen> {
   late Stream<List<VideoItem>> _recommendedVideosStream;
   late Stream<List<VideoItem>> _allVideosStream;
 
-  YoutubePlayerController? _youtubeController;
+  // YoutubePlayerController? _youtubeController; // Temporarily commented out
 
   // Helper method to generate YouTube thumbnail URL with more robust error handling
   String _generateYouTubeThumbnail(String videoUrl) {
@@ -287,24 +287,21 @@ class _VideoScreenState extends State<VideoScreen> {
       _selectedVideo = video;
     });
 
-    // Show a rewarded interstitial ad before playing the video
+    // Show a rewarded ad before playing the video
     // Only show ad for the first video play in the session
     if (!_hasWatchedAd) {
       try {
-        print('Attempting to show rewarded interstitial ad before video playback');
-        final bool adShown = await _adService.showRewardedInterstitialAd(
-          onUserEarnedReward: (ad, reward) {
-            setState(() {
-              _hasWatchedAd = true;
-            });
-            // Initialize the video player after the ad completes
-            _initializeVideoPlayer(video);
-          },
-        );
+        print('Attempting to show rewarded ad before video playback');
+        final bool adShown = await _adService.showRewardedVideoAd();
 
-        // If ad fails to show, just continue with video playback
-        if (!adShown) {
-          print('Failed to show ad, continuing with video playback');
+        if (adShown) {
+          setState(() {
+            _hasWatchedAd = true;
+          });
+          // Initialize the video player after the ad completes
+          _initializeVideoPlayer(video);
+        } else {
+          print('Ad failed to show, continuing with video playback');
           _initializeVideoPlayer(video);
         }
       } catch (e) {
@@ -319,29 +316,30 @@ class _VideoScreenState extends State<VideoScreen> {
 
   // Helper method to initialize the video player
   void _initializeVideoPlayer(VideoItem video) {
+    // Temporarily disabled due to youtube_player_iframe web compatibility issues
     // Extract YouTube video ID
-    final String? videoId = YoutubePlayerController.convertUrlToId(video.videoUrl);
+    // final String? videoId = YoutubePlayerController.convertUrlToId(video.videoUrl);
 
-    if (videoId == null) {
+    // if (videoId == null) {
       // If not a valid YouTube URL, launch externally
       _launchExternalVideo(video);
       return;
-    }
+    // }
 
-    print('Initializing YouTube player with video ID: $videoId');
+    // print('Initializing YouTube player with video ID: $videoId');
     
     // Initialize YouTube Player Controller with custom options
-    _youtubeController = YoutubePlayerController.fromVideoId(
-      videoId: videoId,
-      autoPlay: true,
-      params: const YoutubePlayerParams(
-        showControls: true,
-        showFullscreenButton: true,
-        enableCaption: true,
-        showVideoAnnotations: false,
-        enableJavaScript: true,
-      ),
-    );
+    // _youtubeController = YoutubePlayerController.fromVideoId(
+    //   videoId: videoId,
+    //   autoPlay: true,
+    //   params: const YoutubePlayerParams(
+    //     showControls: true,
+    //     showFullscreenButton: true,
+    //     enableCaption: true,
+    //     showVideoAnnotations: false,
+    //     enableJavaScript: true,
+    //   ),
+    // );
 
     // Track video play count
     _videoService.incrementVideoViews(video.id);
@@ -370,9 +368,11 @@ class _VideoScreenState extends State<VideoScreen> {
   }
 
   Widget _buildVideoPlayerBottomSheet() {
-    if (_youtubeController == null || _selectedVideo == null) {
-      return const SizedBox.shrink();
-    }
+    // Temporarily disabled due to youtube_player_iframe web compatibility issues
+    // if (_youtubeController == null || _selectedVideo == null) {
+    //   return const SizedBox.shrink();
+    // }
+    return const SizedBox.shrink(); // Temporarily return empty widget
 
     return DraggableScrollableSheet(
       initialChildSize: 0.95,
@@ -434,9 +434,16 @@ class _VideoScreenState extends State<VideoScreen> {
               child: ListView(
                 controller: controller,
                 children: [
-                  YoutubePlayer(
-                    controller: _youtubeController!,
-                    aspectRatio: 16 / 9,
+                  // YoutubePlayer(
+                  //   controller: _youtubeController!,
+                  //   aspectRatio: 16 / 9,
+                  // ),
+                  Container(
+                    height: 200,
+                    color: Colors.grey[300],
+                    child: const Center(
+                      child: Text('Video player temporarily disabled'),
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(16),
@@ -466,8 +473,7 @@ class _VideoScreenState extends State<VideoScreen> {
                                 // TODO: Implement like functionality
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                      content:
-                                          Text('Like feature coming soon')),
+                                      content: Text('Like feature coming soon')),
                                 );
                               },
                             ),
@@ -478,15 +484,27 @@ class _VideoScreenState extends State<VideoScreen> {
                                 // TODO: Implement comment functionality
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                      content:
-                                          Text('Comment feature coming soon')),
+                                      content: Text('Comment feature coming soon')),
                                 );
                               },
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
-                        BannerAdWidget(adSize: AdSize.banner),
+                        // Large banner ad
+                        Center(
+                          child: Container(
+                            width: MediaQuery.of(context).size.width * 0.9,
+                            height: 250, // Larger height for the banner
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: BannerAdWidget(
+                              adSize: AdSize.largeBanner,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -684,7 +702,8 @@ class _VideoScreenState extends State<VideoScreen> {
           child: StreamBuilder<int>(
             stream: _videoService.getVideoViews(video.id),
             builder: (context, snapshot) {
-              final views = snapshot.data ?? video.views;
+              final views =
+                  snapshot.data ?? video.views;
               return Text(
                 '${_formatViews(views)} • ${_formatDate(video.postedDate)} • ${video.likes} likes',
                 style: const TextStyle(color: Colors.grey),
@@ -805,7 +824,7 @@ class _VideoScreenState extends State<VideoScreen> {
       DeviceOrientation.portraitUp,
     ]);
 
-    _youtubeController?.close();
+    // _youtubeController?.close(); // Temporarily commented out
     _recommendedVideosController.close();
     _allVideosController.close();
     super.dispose();

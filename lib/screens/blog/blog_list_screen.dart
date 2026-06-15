@@ -102,7 +102,9 @@ class _BlogListScreenState extends State<BlogListScreen> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-              child: BannerAdWidget(adSize: AdSize.mediumRectangle),
+              child: BannerAdWidget(
+                adSize: AdSize.mediumRectangle,
+              ),
             ),
           ),
 

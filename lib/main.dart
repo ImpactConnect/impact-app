@@ -6,9 +6,10 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:onesignal_flutter/onesignal_flutter.dart'; 
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'services/ad_service.dart';
 import 'widgets/ads/banner_ad_widget.dart';
 
@@ -30,7 +31,7 @@ import 'services/audio_player_service.dart';
 import 'services/bible_service.dart';
 import 'services/blog_service.dart';
 import 'services/note_service.dart';
-import 'services/onesignal_service.dart'; 
+import 'services/onesignal_service.dart';
 import 'services/sermon_service.dart';
 import 'services/update_service.dart';
 import 'utils/data_migration.dart';
@@ -46,7 +47,8 @@ import 'screens/live_stream_screen.dart';
 import 'screens/settings_screen.dart'; // Import the SettingsScreen
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   try {
     print('Initializing Firebase...');
@@ -76,9 +78,10 @@ Future<void> main() async {
     if (!kIsWeb) {
       try {
         await OneSignalService.initOneSignal();
-        
+
         // Check notification permissions
-        final hasPermission = await OneSignalService.checkNotificationPermissions();
+        final hasPermission =
+            await OneSignalService.checkNotificationPermissions();
         if (!hasPermission) {
           print('Notification permissions not granted');
         }
@@ -111,8 +114,8 @@ Future<void> main() async {
 
   // Initialize audio service
   await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.example.church_mobile.channel.audio',
-    androidNotificationChannelName: 'Church Mobile Audio',
+    androidNotificationChannelId: 'com.impactconnect.app.channel.audio',
+    androidNotificationChannelName: 'Impact Connect Audio',
     androidNotificationOngoing: true,
     androidStopForegroundOnPause: true,
   );
@@ -126,6 +129,9 @@ Future<void> main() async {
   final blogService = BlogService();
 
   await bibleService.loadBible();
+
+  // Remove the splash screen
+  FlutterNativeSplash.remove();
 
   runApp(
     MultiProvider(
@@ -203,7 +209,8 @@ class MyApp extends StatelessWidget {
               '/videos': (context) => const VideoScreen(),
               '/gallery': (context) => const GalleryScreen(),
               '/blog/detail': (context) {
-                final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+                final args = ModalRoute.of(context)?.settings.arguments
+                    as Map<String, dynamic>?;
                 final postId = args?['postId'] as String?;
                 if (postId != null) {
                   return BlogDetailScreen(postId: postId);
@@ -211,12 +218,14 @@ class MyApp extends StatelessWidget {
                 return const BlogListScreen();
               },
               '/search': (context) {
-                final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+                final args = ModalRoute.of(context)?.settings.arguments
+                    as Map<String, dynamic>?;
                 final query = args?['query'] as String? ?? '';
                 return SearchScreen(initialQuery: query);
               },
               '/report_bug': (context) => const ReportBugScreen(),
-              '/settings': (context) => const SettingsScreen(), // Add the settings route
+              '/settings': (context) =>
+                  const SettingsScreen(), // Add the settings route
             },
             onGenerateRoute: (settings) {
               final uri = Uri.parse(settings.name ?? '');
@@ -324,10 +333,13 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              'assets/images/church_logo.png',
-              width: 150,
-              height: 150,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.asset(
+                'assets/images/church_logo.png',
+                width: 150,
+                height: 150,
+              ),
             ),
             const SizedBox(height: 20),
             Text(
@@ -342,7 +354,7 @@ class _SplashScreenState extends State<SplashScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 40),
               child: Text(
-                'Your spiritual companion for sermons, devotionals, and church resources',
+                'Your spiritual companion for edifying resources....',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -391,7 +403,7 @@ class _HomePageState extends State<HomePage> {
       setState(() => _isLoading = true);
       _bibleService = MyApp.of(context).bibleService;
       _noteService = MyApp.of(context).noteService;
-      
+
       // Initialize the ad service
       if (!kIsWeb) {
         await _adService.initialize();
@@ -403,7 +415,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _checkForUpdates() async {
     final updateData = await _updateService.checkForUpdates();
-    
+
     if (updateData != null && mounted) {
       // Show the update dialog
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -574,8 +586,8 @@ class _HomePageState extends State<HomePage> {
                       action['label'] as String,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 11,
-                      ),
+                            fontSize: 11,
+                          ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -632,8 +644,8 @@ class _HomePageState extends State<HomePage> {
                   button['label'] as String,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 11,
-                  ),
+                        fontSize: 11,
+                      ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -737,7 +749,7 @@ class _HomePageState extends State<HomePage> {
                     // Field doesn't exist, use null
                     imageUrl = null;
                   }
-                  
+
                   return GestureDetector(
                     onTap: () {
                       Navigator.push(
@@ -745,7 +757,8 @@ class _HomePageState extends State<HomePage> {
                         MaterialPageRoute(
                           builder: (context) => SermonScreen(
                             sermonService: MyApp.of(context).sermonService,
-                            audioPlayerService: MyApp.of(context).audioPlayerService,
+                            audioPlayerService:
+                                MyApp.of(context).audioPlayerService,
                             initialPreacher: preacherName,
                           ),
                         ),
@@ -781,26 +794,30 @@ class _HomePageState extends State<HomePage> {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(35),
                                 child: imageUrl != null
-                                  ? CachedNetworkImage(
-                                      imageUrl: imageUrl,
-                                      width: 65,
-                                      height: 65,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) => Container(
+                                    ? CachedNetworkImage(
+                                        imageUrl: imageUrl,
+                                        width: 65,
+                                        height: 65,
+                                        fit: BoxFit.cover,
+                                        placeholder: (context, url) =>
+                                            Container(
+                                          color: Colors.grey[300],
+                                          child: const Icon(Icons.person,
+                                              color: Colors.grey),
+                                        ),
+                                        errorWidget: (context, url, error) =>
+                                            Container(
+                                          color: Colors.grey[300],
+                                          child: const Icon(Icons.error),
+                                        ),
+                                      )
+                                    : Container(
+                                        width: 65,
+                                        height: 65,
                                         color: Colors.grey[300],
-                                        child: const Icon(Icons.person, color: Colors.grey),
+                                        child: const Icon(Icons.person,
+                                            color: Colors.grey),
                                       ),
-                                      errorWidget: (context, url, error) => Container(
-                                        color: Colors.grey[300],
-                                        child: const Icon(Icons.error),
-                                      ),
-                                    )
-                                  : Container(
-                                      width: 65,
-                                      height: 65,
-                                      color: Colors.grey[300],
-                                      child: const Icon(Icons.person, color: Colors.grey),
-                                    ),
                               ),
                             ],
                           ),
@@ -954,8 +971,8 @@ class _HomePageState extends State<HomePage> {
                       category['label'] as String,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 11,
-                      ),
+                            fontSize: 11,
+                          ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1057,7 +1074,8 @@ class _HomePageState extends State<HomePage> {
                       MaterialPageRoute(
                         builder: (context) => SermonScreen(
                           sermonService: MyApp.of(context).sermonService,
-                          audioPlayerService: MyApp.of(context).audioPlayerService,
+                          audioPlayerService:
+                              MyApp.of(context).audioPlayerService,
                           initialSermonId: sermon.id,
                         ),
                       ),
@@ -1083,9 +1101,9 @@ class _HomePageState extends State<HomePage> {
               Text(
                 'Recent Blog Posts',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               TextButton(
                 onPressed: () {
@@ -1099,8 +1117,8 @@ class _HomePageState extends State<HomePage> {
                 child: Text(
                   'View All',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontSize: 14,
-                  ),
+                        fontSize: 14,
+                      ),
                 ),
               ),
             ],
@@ -1189,7 +1207,8 @@ class _HomePageState extends State<HomePage> {
                                 return Container(
                                   height: 120,
                                   color: Colors.grey[300],
-                                  child: const Icon(Icons.image_not_supported, color: Colors.grey),
+                                  child: const Icon(Icons.image_not_supported,
+                                      color: Colors.grey),
                                 );
                               },
                             ),
@@ -1198,10 +1217,13 @@ class _HomePageState extends State<HomePage> {
                             padding: const EdgeInsets.all(8.0),
                             child: Text(
                               post.title,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1229,8 +1251,8 @@ class _HomePageState extends State<HomePage> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.light 
-                ? Colors.grey[200] 
+            color: Theme.of(context).brightness == Brightness.light
+                ? Colors.grey[200]
                 : Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(8.0),
             border: Border.all(color: Colors.grey.withOpacity(0.5)),
@@ -1245,15 +1267,16 @@ class _HomePageState extends State<HomePage> {
           ),
           child: Row(
             children: [
-              Icon(Icons.search, color: Theme.of(context).brightness == Brightness.light 
-                  ? Colors.grey[800] 
-                  : Colors.grey),
+              Icon(Icons.search,
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? Colors.grey[800]
+                      : Colors.grey),
               const SizedBox(width: 8),
               Text(
                 'Search sermons, blogs, ebooks...',
                 style: TextStyle(
-                  color: Theme.of(context).brightness == Brightness.light 
-                      ? Colors.grey[800] 
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? Colors.grey[800]
                       : Colors.grey,
                 ),
               ),
@@ -1275,116 +1298,93 @@ class _HomePageState extends State<HomePage> {
     }
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 200.0,
-            floating: false,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              // title: const Text('Impact Connect'),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.blue[800]!,
-                      Colors.blue[600]!,
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/logo.png',
+              height: 40,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Impact Connect',
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : Colors.black,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? Colors.black
+            : Colors.white,
+        elevation: 0,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildSearchBar(),
+            StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('carousel_config')
+                  .doc('collections')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data!.exists) {
+                  final paths =
+                      List<String>.from(snapshot.data!.get('paths') ?? []);
+                  return Column(
+                    children: [
+                      for (final path in paths) ...[
+                        HomeCarousel(collectionPath: '$path/items'),
+                        const SizedBox(height: 16),
+                      ],
                     ],
-                  ),
-                ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.asset(
-                      'assets/images/home_hero.jpg',
-                      fit: BoxFit.cover,
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.search),
-                onPressed: () {
-                  Navigator.pushNamed(context, '/search');
-                },
-              ),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: _buildSearchBar(),
-          ),
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('carousel_config')
-                      .doc('collections')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasData && snapshot.data!.exists) {
-                      final paths =
-                          List<String>.from(snapshot.data!.get('paths') ?? []);
-                      return Column(
-                        children: [
-                          for (final path in paths) ...[
-                            HomeCarousel(collectionPath: '$path/items'),
-                            const SizedBox(height: 16),
-                          ],
-                        ],
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-                _buildSectionTitle('Quick Actions'),
-                _buildQuickActions(),
-                
-                // Banner ad between Quick Actions and Latest Sermons
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
-                  child: BannerAdWidget(adSize: AdSize.banner),
-                ),
-                
-                _buildLatestSermonsSection(),
-                _buildSectionTitle('Media'),
-                _buildButtonGrid(mediaButtons),
-                _buildSectionTitle('Browse Messages by Preacher'),
-                _buildPreachersRow(),
-                
-                // Banner ad between Browse by Preacher and Browse by Category
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
-                  child: BannerAdWidget(adSize: AdSize.banner),
-                ),
-                
-                _buildSectionTitle('Browse Sermons by Categories'),
-                _buildSermonCategoriesGrid(),
-                _buildRecentBlogPostsSection(),
-                
-                // Large banner ad before the Engagement section
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
-                  child: BannerAdWidget(adSize: AdSize.mediumRectangle),
-                ),
-                
-                _buildSectionTitle('Engagement'),
-                _buildButtonGrid(engagementButtons),
-                const SizedBox(height: 24),
-              ],
+            _buildSectionTitle('Quick Actions'),
+            _buildQuickActions(),
+
+            // Banner ad between Quick Actions and Latest Sermons
+            const Padding(
+              padding:
+                  EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+              child: BannerAdWidget(adSize: AdSize.banner),
             ),
-          ),
-        ],
+
+            _buildLatestSermonsSection(),
+            _buildSectionTitle('Media'),
+            _buildButtonGrid(mediaButtons),
+            _buildSectionTitle('Browse Messages by Preacher'),
+            _buildPreachersRow(),
+
+            // Banner ad between Browse by Preacher and Browse by Category
+            const Padding(
+              padding:
+                  EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+              child: BannerAdWidget(adSize: AdSize.banner),
+            ),
+
+            _buildSectionTitle('Browse Sermons by Categories'),
+            _buildSermonCategoriesGrid(),
+            _buildRecentBlogPostsSection(),
+
+            // Large banner ad before the Engagement section
+            const Padding(
+              padding:
+                  EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+              child: BannerAdWidget(adSize: AdSize.mediumRectangle),
+            ),
+
+            _buildSectionTitle('Engagement'),
+            _buildButtonGrid(engagementButtons),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
       bottomNavigationBar: const BottomNavBar(currentIndex: 0),
     );

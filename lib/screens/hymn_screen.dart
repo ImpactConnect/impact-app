@@ -16,14 +16,14 @@ class Hymn {
 
   factory Hymn.fromJson(Map<String, dynamic> json) {
     return Hymn(
-      hymnNumber: json['hymn_number'],
-      title: json['title'],
-      author: json['author'],
-      lyrics: (json['lyrics'] as List<dynamic>)
+      hymnNumber: json['id'] as int,
+      title: json['title'] as String,
+      author: json['author'] as String,
+      lyrics: (json['verses'] as List<dynamic>)
           .map((stanza) =>
               (stanza as List<dynamic>).map((line) => line.toString()).toList())
           .toList(),
-      chorus: json['chorus'] != null
+      chorus: json['chorus'] != null && (json['chorus'] as List).isNotEmpty
           ? (json['chorus'] as List<dynamic>)
               .map((line) => line.toString())
               .toList()

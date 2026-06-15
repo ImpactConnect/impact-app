@@ -3,6 +3,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/book.dart';
 import '../../services/book_service.dart';
+import '../../utils/url_utils.dart';
 
 class PdfReaderScreen extends StatefulWidget {
   const PdfReaderScreen({
@@ -22,11 +23,13 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   bool _hasError = false;
   int _viewMode = 0; // 0: Google Docs, 1: Direct, 2: External
   late WebViewController _webViewController;
+  late String _processedUrl;
 
   @override
   void initState() {
     super.initState();
     _progressFuture = _bookService.getReadingProgress(widget.book.id);
+    _processedUrl = UrlUtils.processUrlForViewing(widget.book.pdfUrl);
     _initWebView();
   }
 
@@ -55,33 +58,42 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
           },
         ),
       );
-    
+
     // Start with Google Docs viewer
     _loadWithGoogleDocsViewer();
   }
-  
+
   void _loadWithGoogleDocsViewer() {
-    final encodedUrl = Uri.encodeComponent(widget.book.pdfUrl);
-    final googleDocsUrl = 'https://docs.google.com/viewer?url=$encodedUrl&embedded=true';
-    _webViewController.loadRequest(Uri.parse(googleDocsUrl));
+    String urlToLoad;
+    
+    if (UrlUtils.isGoogleDriveUrl(widget.book.pdfUrl)) {
+      // For Google Drive URLs, try the preview URL first
+      urlToLoad = UrlUtils.getGoogleDrivePreviewUrl(widget.book.pdfUrl);
+    } else {
+      // For regular PDFs, use Google Docs viewer
+      final encodedUrl = Uri.encodeComponent(_processedUrl);
+      urlToLoad = 'https://docs.google.com/viewer?url=$encodedUrl&embedded=true';
+    }
+    
+    _webViewController.loadRequest(Uri.parse(urlToLoad));
     setState(() {
       _viewMode = 0;
     });
   }
-  
+
   void _loadDirectPdf() {
-    _webViewController.loadRequest(Uri.parse(widget.book.pdfUrl));
+    _webViewController.loadRequest(Uri.parse(_processedUrl));
     setState(() {
       _viewMode = 1;
     });
   }
-  
+
   Future<void> _openExternalPdf() async {
     setState(() {
       _viewMode = 2;
     });
-    
-    final Uri url = Uri.parse(widget.book.pdfUrl);
+
+    final Uri url = Uri.parse(_processedUrl);
     try {
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -118,7 +130,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
           IconButton(
             icon: const Icon(Icons.bookmark),
             onPressed: () {
-              _saveProgress(1); // Default to page 1 since we can't track pages reliably
+              _saveProgress(
+                  1); // Default to page 1 since we can't track pages reliably
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Reading progress saved'),
@@ -141,22 +154,35 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 case 2:
                   _openExternalPdf();
                   break;
+                case 3:
+                  // Try original URL for Google Drive files
+                  _webViewController.loadRequest(Uri.parse(widget.book.pdfUrl));
+                  break;
               }
             },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<int>>[
-              const PopupMenuItem<int>(
-                value: 0,
-                child: Text('Google Docs Viewer'),
-              ),
-              const PopupMenuItem<int>(
-                value: 1,
-                child: Text('Direct PDF (WebView)'),
-              ),
-              const PopupMenuItem<int>(
-                value: 2,
-                child: Text('Open in External App'),
-              ),
-            ],
+            itemBuilder: (BuildContext context) {
+              final isGoogleDrive = UrlUtils.isGoogleDriveUrl(widget.book.pdfUrl);
+              
+              return <PopupMenuEntry<int>>[
+                PopupMenuItem<int>(
+                  value: 0,
+                  child: Text(isGoogleDrive ? 'Google Drive Preview' : 'Google Docs Viewer'),
+                ),
+                PopupMenuItem<int>(
+                  value: 1,
+                  child: Text(isGoogleDrive ? 'Direct Download' : 'Direct PDF (WebView)'),
+                ),
+                const PopupMenuItem<int>(
+                  value: 2,
+                  child: Text('Open in External App'),
+                ),
+                if (isGoogleDrive)
+                  const PopupMenuItem<int>(
+                    value: 3,
+                    child: Text('Try Original URL'),
+                  ),
+              ];
+            },
           ),
         ],
       ),
@@ -167,14 +193,15 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 WebViewWidget(controller: _webViewController),
                 if (_isLoading)
                   const Center(child: CircularProgressIndicator()),
-                if (_hasError)
-                  _buildErrorWidget(),
+                if (_hasError) _buildErrorWidget(),
               ],
             ),
     );
   }
-  
+
   Widget _buildErrorWidget() {
+    final isGoogleDrive = UrlUtils.isGoogleDriveUrl(widget.book.pdfUrl);
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -185,21 +212,47 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             'Failed to load PDF',
             style: Theme.of(context).textTheme.titleLarge,
           ),
+          const SizedBox(height: 10),
+          if (isGoogleDrive)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Text(
+                'This appears to be a Google Drive file. Make sure the file is publicly accessible or try opening it externally.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
           const SizedBox(height: 20),
+          if (!isGoogleDrive) ...[
+            ElevatedButton(
+              onPressed: _loadWithGoogleDocsViewer,
+              child: const Text('Try Google Docs Viewer'),
+            ),
+            const SizedBox(height: 10),
+          ],
           ElevatedButton(
-            onPressed: _loadWithGoogleDocsViewer,
-            child: const Text('Try Google Docs Viewer'),
+            onPressed: _loadDirectPdf,
+            child: Text(isGoogleDrive ? 'Try Direct Access' : 'Try Direct PDF'),
           ),
           const SizedBox(height: 10),
           ElevatedButton(
             onPressed: _openExternalPdf,
             child: const Text('Open in External App'),
           ),
+          if (isGoogleDrive) ...[
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () {
+                _webViewController.loadRequest(Uri.parse(widget.book.pdfUrl));
+              },
+              child: const Text('Try Original URL'),
+            ),
+          ],
         ],
       ),
     );
   }
-  
+
   Widget _buildExternalViewPlaceholder() {
     return Center(
       child: Column(

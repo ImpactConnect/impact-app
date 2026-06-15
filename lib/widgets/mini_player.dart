@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../models/sermon.dart';
+import '../services/ad_service.dart';
 import '../services/audio_player_service.dart';
 import '../widgets/ads/banner_ad_widget.dart';
 
@@ -12,10 +13,12 @@ class MiniPlayer extends StatefulWidget {
     Key? key,
     required this.sermon,
     required this.audioPlayerService,
+    required this.adService,
     required this.onClose,
   }) : super(key: key);
   final Sermon sermon;
   final AudioPlayerService audioPlayerService;
+  final AdService adService;
   final VoidCallback onClose;
 
   @override
@@ -27,11 +30,18 @@ class _MiniPlayerState extends State<MiniPlayer> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   final List<StreamSubscription> _subscriptions = [];
+  bool _isAdLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _initializeStreams();
+    // Use AdService for ad loading
+    widget.adService.setAdLoadCallback((isLoaded) {
+      setState(() {
+        _isAdLoaded = isLoaded;
+      });
+    });
   }
 
   void _initializeStreams() {
@@ -103,9 +113,9 @@ class _MiniPlayerState extends State<MiniPlayer> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Banner ad at the top of mini player
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8.0),
-              child: BannerAdWidget(adSize: AdSize.banner),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: BannerAdWidget(adSize: AdSize.mediumRectangle),
             ),
             // Sermon info
             Row(
@@ -149,7 +159,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
                   icon: const Icon(Icons.close),
                   onPressed: () {
                     widget.onClose();
-                    widget.audioPlayerService.stop();
                   },
                 ),
               ],

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../models/sermon.dart';
@@ -9,6 +10,7 @@ import '../widgets/mini_player.dart';
 import '../widgets/sermon_card.dart';
 import '../widgets/bottom_nav_bar.dart'; // Import the BottomNavBar widget
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'dart:io';
 
 class SermonScreen extends StatefulWidget {
   const SermonScreen({
@@ -44,6 +46,7 @@ class _SermonScreenState extends State<SermonScreen>
   String? _error;
   bool _showMiniPlayer = false;
   Sermon? _currentSermon;
+  bool _isAdLoaded = false;
 
   final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey =
       GlobalKey<RefreshIndicatorState>();
@@ -68,7 +71,14 @@ class _SermonScreenState extends State<SermonScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _adService.setAdLoadCallback((isLoaded) {
+      setState(() {
+        _isAdLoaded = isLoaded;
+      });
+    });
     _initializeData();
+    // Load ads when the screen initializes
+    _adService.initialize();
     // Play initial sermon if ID is provided
     if (widget.initialSermonId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -81,6 +91,25 @@ class _SermonScreenState extends State<SermonScreen>
     if (widget.initialPreacher != null) {
       _selectedPreacher = widget.initialPreacher;
     }
+    // Listen for audio player state changes
+    widget.audioPlayerService.playerStateStream.listen((state) {
+      setState(() {
+        _showMiniPlayer = true;
+        _currentSermon = widget.audioPlayerService.currentSermon;
+      });
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Check if audio is playing when screen is resumed
+    if (widget.audioPlayerService.player.playing) {
+      setState(() {
+        _showMiniPlayer = true;
+        _currentSermon = widget.audioPlayerService.currentSermon;
+      });
+    }
   }
 
   @override
@@ -92,13 +121,25 @@ class _SermonScreenState extends State<SermonScreen>
 
   Future<void> _initializeData() async {
     try {
+      // Check for network connectivity (skip on web)
+      if (!kIsWeb) {
+        try {
+          final result = await InternetAddress.lookup('google.com');
+          if (result.isEmpty || result[0].rawAddress.isEmpty) {
+            throw Exception('No internet connection');
+          }
+        } catch (e) {
+          throw Exception('No internet connection');
+        }
+      }
+
       final sermons = await widget.sermonService.getSermons();
-      
+
       // Extract categories, preachers, and tags from sermons
       final categorySet = <String>{};
       final preacherSet = <String>{};
       final tagSet = <String>{};
-      
+
       for (final sermon in sermons) {
         categorySet.add(sermon.category);
         preacherSet.add(sermon.preacherName);
@@ -106,39 +147,46 @@ class _SermonScreenState extends State<SermonScreen>
           tagSet.add(tag);
         }
       }
-      
+
       if (mounted) {
         setState(() {
           _categories = categorySet.toList()..sort();
           _preachers = preacherSet.toList()..sort();
           _tags = tagSet.toList()..sort();
-          
+
           // Apply initial filters if provided
           if (widget.initialCategory != null) {
             _selectedCategory = widget.initialCategory;
           }
-          
+
           if (widget.initialPreacher != null) {
             _selectedPreacher = widget.initialPreacher;
           }
-          
+
           _isLoading = false;
         });
       }
-      
+
       // Play initial sermon if provided
       if (widget.initialSermonId != null) {
         _playInitialSermon();
       }
-      
+
       // Force a rebuild to ensure the UI reflects the latest data
       if (mounted) {
         setState(() {});
       }
+    } on SocketException {
+      if (mounted) {
+        setState(() {
+          _error = 'No internet connection';
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = 'Error loading data';
           _isLoading = false;
         });
       }
@@ -162,20 +210,12 @@ class _SermonScreenState extends State<SermonScreen>
     });
     // The click count is already incremented in the SermonCard onTap
     widget.audioPlayerService.playSermonFromPlaylist(sermon, playlist);
-    // Trigger a refresh after a short delay to update the UI with new counter values
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        setState(() {});
-      }
-    });
   }
 
   void _closeMiniPlayer() {
     setState(() {
       _showMiniPlayer = false;
-      _currentSermon = null;
     });
-    widget.audioPlayerService.stop();
   }
 
   Future<void> _playInitialSermon() async {
@@ -183,6 +223,10 @@ class _SermonScreenState extends State<SermonScreen>
       final sermon =
           await widget.sermonService.getSermonById(widget.initialSermonId!);
       if (sermon != null && mounted) {
+        setState(() {
+          _showMiniPlayer = true;
+          _currentSermon = sermon;
+        });
         widget.audioPlayerService.playSermon(sermon);
       }
     } catch (e) {
@@ -192,265 +236,293 @@ class _SermonScreenState extends State<SermonScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          RefreshIndicator(
-            key: _refreshIndicatorKey,
-            onRefresh: _handleRefresh,
-            child: NestedScrollView(
-              headerSliverBuilder: (context, innerBoxIsScrolled) {
-                return [
-                  SliverAppBar(
-                    expandedHeight: 200,
-                    floating: false,
-                    pinned: true,
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    flexibleSpace: FlexibleSpaceBar(
-                      title: const Text('Sermons'),
-                      background: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Theme.of(context).primaryColor,
-                              Theme.of(context).primaryColor.withOpacity(0.7),
+    return WillPopScope(
+      onWillPop: () async {
+        // Minimize mini player instead of closing the screen
+        if (_showMiniPlayer) {
+          _closeMiniPlayer();
+          return false; // Prevent closing the screen
+        }
+        return true; // Allow closing the screen if mini player is not shown
+      },
+      child: Scaffold(
+        body: Stack(
+          children: [
+            RefreshIndicator(
+              key: _refreshIndicatorKey,
+              onRefresh: _handleRefresh,
+              child: NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    SliverAppBar(
+                      expandedHeight: 200,
+                      floating: false,
+                      pinned: true,
+                      leading: IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      ),
+                      flexibleSpace: FlexibleSpaceBar(
+                        title: const Text(''),
+                        background: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Theme.of(context).primaryColor,
+                                Theme.of(context).primaryColor.withOpacity(0.7),
+                              ],
+                            ),
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.asset(
+                                'assets/images/sermon_hero.jpg',
+                                fit: BoxFit.cover,
+                              ),
+                              Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withOpacity(0.7),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                        child: Stack(
-                          fit: StackFit.expand,
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Image.asset(
-                              'assets/images/sermon_hero.jpg',
-                              fit: BoxFit.cover,
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.transparent,
-                                    Colors.black.withOpacity(0.7),
-                                  ],
+                            // Search Bar
+                            TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                hintText: 'Search sermons...',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _searchQuery.isNotEmpty ||
+                                        _selectedCategory != null ||
+                                        _selectedPreacher != null ||
+                                        _selectedTag != null
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: _clearFilters,
+                                      )
+                                    : null,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
+                              ),
+                              onChanged: (value) {
+                                setState(() {
+                                  _searchQuery = value;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Banner ad between search bar and filter section
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: BannerAdWidget(adSize: AdSize.banner),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Filter Section Header
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Filter By:',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (_selectedCategory != null ||
+                                    _selectedPreacher != null ||
+                                    _selectedTag != null)
+                                  TextButton.icon(
+                                    onPressed: _clearFilters,
+                                    icon: const Icon(Icons.clear_all),
+                                    label: const Text('Clear All'),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // Filter Chips
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  FilterChip(
+                                    label: Text(
+                                        'Preacher: ${_selectedPreacher ?? 'All'}'),
+                                    selected: _selectedPreacher != null,
+                                    onSelected: (_) async {
+                                      final preacher = await showDialog<String>(
+                                        context: context,
+                                        builder: (context) => SimpleDialog(
+                                          title: const Text('Select Preacher'),
+                                          children: [
+                                            SimpleDialogOption(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, null),
+                                              child: const Text('All'),
+                                            ),
+                                            ..._preachers.map(
+                                                (preacher) => SimpleDialogOption(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context, preacher),
+                                                      child: Text(preacher),
+                                                    )),
+                                          ],
+                                        ),
+                                      );
+                                      setState(() {
+                                        _selectedPreacher = preacher;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  FilterChip(
+                                    label: Text(
+                                        'Category: ${_selectedCategory ?? 'All'}'),
+                                    selected: _selectedCategory != null,
+                                    onSelected: (_) async {
+                                      final category = await showDialog<String>(
+                                        context: context,
+                                        builder: (context) => SimpleDialog(
+                                          title: const Text('Select Category'),
+                                          children: [
+                                            SimpleDialogOption(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, null),
+                                              child: const Text('All'),
+                                            ),
+                                            ..._categories.map(
+                                                (category) => SimpleDialogOption(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context, category),
+                                                      child: Text(category),
+                                                    )),
+                                          ],
+                                        ),
+                                      );
+                                      setState(() {
+                                        _selectedCategory = category;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  FilterChip(
+                                    label: Text('Tags: ${_selectedTag ?? 'All'}'),
+                                    selected: _selectedTag != null,
+                                    onSelected: (_) async {
+                                      final tag = await showDialog<String>(
+                                        context: context,
+                                        builder: (context) => SimpleDialog(
+                                          title: const Text('Select Tag'),
+                                          children: [
+                                            SimpleDialogOption(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, null),
+                                              child: const Text('All'),
+                                            ),
+                                            ..._tags.map((tag) =>
+                                                SimpleDialogOption(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context, tag),
+                                                  child: Text(tag),
+                                                )),
+                                          ],
+                                        ),
+                                      );
+                                      setState(() {
+                                        _selectedTag = tag;
+                                      });
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Search Bar
-                          TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              hintText: 'Search sermons...',
-                              prefixIcon: const Icon(Icons.search),
-                              suffixIcon: _searchQuery.isNotEmpty ||
-                                      _selectedCategory != null ||
-                                      _selectedPreacher != null ||
-                                      _selectedTag != null
-                                  ? IconButton(
-                                      icon: const Icon(Icons.clear),
-                                      onPressed: _clearFilters,
-                                    )
-                                  : null,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            onChanged: (value) {
-                              setState(() {
-                                _searchQuery = value;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          
-                          // Banner ad between search bar and filter section
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
-                            child: BannerAdWidget(adSize: AdSize.banner),
-                          ),
-                          const SizedBox(height: 16),
-                          
-                          // Filter Section Header
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Filter By:',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (_selectedCategory != null ||
-                                  _selectedPreacher != null ||
-                                  _selectedTag != null)
-                                TextButton.icon(
-                                  onPressed: _clearFilters,
-                                  icon: const Icon(Icons.clear_all),
-                                  label: const Text('Clear All'),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          // Filter Chips
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                FilterChip(
-                                  label: Text(
-                                      'Preacher: ${_selectedPreacher ?? 'All'}'),
-                                  selected: _selectedPreacher != null,
-                                  onSelected: (_) async {
-                                    final preacher = await showDialog<String>(
-                                      context: context,
-                                      builder: (context) => SimpleDialog(
-                                        title: const Text('Select Preacher'),
-                                        children: [
-                                          SimpleDialogOption(
-                                            onPressed: () =>
-                                                Navigator.pop(context, null),
-                                            child: const Text('All'),
-                                          ),
-                                          ..._preachers.map(
-                                              (preacher) => SimpleDialogOption(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, preacher),
-                                                    child: Text(preacher),
-                                                  )),
-                                        ],
-                                      ),
-                                    );
-                                    setState(() {
-                                      _selectedPreacher = preacher;
-                                    });
-                                  },
-                                ),
-                                const SizedBox(width: 8),
-                                FilterChip(
-                                  label: Text(
-                                      'Category: ${_selectedCategory ?? 'All'}'),
-                                  selected: _selectedCategory != null,
-                                  onSelected: (_) async {
-                                    final category = await showDialog<String>(
-                                      context: context,
-                                      builder: (context) => SimpleDialog(
-                                        title: const Text('Select Category'),
-                                        children: [
-                                          SimpleDialogOption(
-                                            onPressed: () =>
-                                                Navigator.pop(context, null),
-                                            child: const Text('All'),
-                                          ),
-                                          ..._categories.map(
-                                              (category) => SimpleDialogOption(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, category),
-                                                    child: Text(category),
-                                                  )),
-                                        ],
-                                      ),
-                                    );
-                                    setState(() {
-                                      _selectedCategory = category;
-                                    });
-                                  },
-                                ),
-                                const SizedBox(width: 8),
-                                FilterChip(
-                                  label: Text('Tags: ${_selectedTag ?? 'All'}'),
-                                  selected: _selectedTag != null,
-                                  onSelected: (_) async {
-                                    final tag = await showDialog<String>(
-                                      context: context,
-                                      builder: (context) => SimpleDialog(
-                                        title: const Text('Select Tag'),
-                                        children: [
-                                          SimpleDialogOption(
-                                            onPressed: () =>
-                                                Navigator.pop(context, null),
-                                            child: const Text('All'),
-                                          ),
-                                          ..._tags.map((tag) =>
-                                              SimpleDialogOption(
-                                                onPressed: () =>
-                                                    Navigator.pop(context, tag),
-                                                child: Text(tag),
-                                              )),
-                                        ],
-                                      ),
-                                    );
-                                    setState(() {
-                                      _selectedTag = tag;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
+                    SliverToBoxAdapter(
+                      child: TabBar(
+                        controller: _tabController,
+                        labelColor: Theme.of(context).primaryColor,
+                        unselectedLabelColor: Colors.grey,
+                        tabs: const [
+                          Tab(text: 'All'),
+                          Tab(text: 'Bookmarked'),
+                          Tab(text: 'Downloaded'),
                         ],
                       ),
                     ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: TabBar(
-                      controller: _tabController,
-                      labelColor: Theme.of(context).primaryColor,
-                      unselectedLabelColor: Colors.grey,
-                      tabs: const [
-                        Tab(text: 'All'),
-                        Tab(text: 'Bookmarked'),
-                        Tab(text: 'Downloaded'),
-                      ],
-                    ),
-                  ),
-                ];
-              },
-              body: TabBarView(
-                controller: _tabController,
-                children: [
-                  // All Sermons Tab
-                  _buildSermonList(null),
-                  // Bookmarked Sermons Tab
-                  _buildSermonList('bookmarked'),
-                  // Downloaded Sermons Tab
-                  _buildSermonList('downloaded'),
-                ],
+                  ];
+                },
+                body: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // All Sermons Tab
+                    _buildSermonList(null),
+                    // Bookmarked Sermons Tab
+                    _buildSermonList('bookmarked'),
+                    // Downloaded Sermons Tab
+                    _buildSermonList('downloaded'),
+                  ],
+                ),
               ),
             ),
+            if (_showMiniPlayer && _currentSermon != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 100, // Move up from bottom
+                child: MiniPlayer(
+                  sermon: _currentSermon!,
+                  audioPlayerService: widget.audioPlayerService,
+                  adService: _adService,
+                  onClose: _closeMiniPlayer,
+                ),
+              ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () {
+            setState(() {
+              _showMiniPlayer = true; // Show the mini player
+            });
+          },
+          label: const Text('Play'),
+          icon: const Icon(Icons.play_arrow),
+          backgroundColor: Theme.of(context).primaryColor,
+          foregroundColor: Colors.white,
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          if (_showMiniPlayer && _currentSermon != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: MiniPlayer(
-                sermon: _currentSermon!,
-                audioPlayerService: widget.audioPlayerService,
-                onClose: _closeMiniPlayer,
-              ),
-            ),
-        ],
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+        floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
+        bottomNavigationBar: const BottomNavBar(currentIndex: 1),
       ),
-      bottomNavigationBar: const BottomNavBar(currentIndex: 1),
     );
   }
 
@@ -508,6 +580,11 @@ class _SermonScreenState extends State<SermonScreen>
             final matchesTag =
                 _selectedTag == null || sermon.tags.contains(_selectedTag);
 
+            // If we're in downloaded tab, only show downloaded sermons
+            if (filter == 'downloaded') {
+              return sermon.isDownloaded;
+            }
+
             return matchesSearch &&
                 matchesPreacher &&
                 matchesCategory &&
@@ -519,10 +596,16 @@ class _SermonScreenState extends State<SermonScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                  Icon(
+                    filter == 'downloaded' ? Icons.download_done : Icons.search_off,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
                   const SizedBox(height: 16),
                   Text(
-                    'No sermons found',
+                    filter == 'downloaded'
+                        ? 'No downloaded sermons found'
+                        : 'No sermons found',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey[600],
@@ -537,38 +620,43 @@ class _SermonScreenState extends State<SermonScreen>
             padding: EdgeInsets.only(
               bottom: _showMiniPlayer ? 100 : 16,
             ),
-            itemCount: filteredSermons.length + (filteredSermons.length ~/ 4), // Add extra items for ads
+            itemCount: filteredSermons.length +
+                (filteredSermons.length ~/ 10), // Add extra items for ads
             itemBuilder: (context, index) {
               // Calculate the actual sermon index accounting for ad positions
-              final int adCount = index ~/ 5; // Every 5th item (after 4 sermons) is an ad
+              final int adCount =
+                  index ~/ 11; // Every 11th item (after 10 sermons) is an ad
               final int sermonIndex = index - adCount;
-              
+
               // Check if this position should display an ad
-              if (index > 0 && index % 5 == 0) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: BannerAdWidget(adSize: AdSize.mediumRectangle),
+              if (index > 0 && index % 11 == 0) {
+                return FutureBuilder<bool>(
+                  future: _adService.isAdLoaded(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data == true) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: BannerAdWidget(adSize: AdSize.mediumRectangle),
+                      );
+                    }
+                    // If ad is not loaded, return empty space
+                    return const SizedBox.shrink();
+                  },
                 );
               }
-              
+
               // If we've reached the end of our sermon list, don't try to display a sermon
               if (sermonIndex >= filteredSermons.length) {
                 return const SizedBox.shrink();
               }
-              
+
               final sermon = filteredSermons[sermonIndex];
               return SermonCard(
                 sermon: sermon,
-                audioPlayerService: widget.audioPlayerService,
                 sermonService: widget.sermonService,
+                audioPlayerService: widget.audioPlayerService,
+                onRefresh: _handleRefresh,
                 onTap: () => _playSermon(sermon, filteredSermons),
-                onRefresh: () {
-                  // Refresh the sermon list to get updated counter values
-                  setState(() {
-                    _isLoading = true;
-                  });
-                  _initializeData();
-                },
               );
             },
           );

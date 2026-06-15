@@ -56,7 +56,7 @@ class DefaultFirebaseOptions {
     projectId: 'church-mobile-a1758',
     storageBucket: 'church-mobile-a1758.firebasestorage.app',
     iosClientId: '581635607729-xxxxx.apps.googleusercontent.com',
-    iosBundleId: 'com.example.church_mobile',
+    iosBundleId: 'com.impactconnect.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -66,6 +66,6 @@ class DefaultFirebaseOptions {
     projectId: 'church-mobile-a1758',
     storageBucket: 'church-mobile-a1758.firebasestorage.app',
     iosClientId: '581635607729-xxxxx.apps.googleusercontent.com',
-    iosBundleId: 'com.example.church_mobile',
+    iosBundleId: 'com.impactconnect.app',
   );
 }

@@ -45,7 +45,7 @@ class HelpSupportScreen extends StatelessWidget {
                   child: _SupportCard(
                     icon: Icons.email,
                     title: 'Contact Support',
-                    onTap: () => _launchURL('mailto:support@yourchurch.com'),
+                    onTap: () => _launchURL('mailto:teay361@gmail.com'),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -53,7 +53,10 @@ class HelpSupportScreen extends StatelessWidget {
                   child: _SupportCard(
                     icon: Icons.chat,
                     title: 'Live Chat',
-                    onTap: () => _launchURL('https://yourchurch.com/chat'),
+                    onTap: () async {
+                      final whatsappUrl = 'https://wa.me/2347032196863?text=Hello%20I%20need%20help';
+                      await _launchURL(whatsappUrl);
+                    },
                   ),
                 ),
               ],
@@ -65,14 +68,14 @@ class HelpSupportScreen extends StatelessWidget {
             'Getting Started',
             [
               FAQItem(
-                question: 'How do I create an account?',
+                question: 'How do I access the app?',
                 answer:
-                    'Tap the profile icon and follow the registration process. You\'ll need to provide your email and create a password.',
+                    'The app is free to use and does not require registration. Simply open the app to access all available resources.',
               ),
               FAQItem(
-                question: 'How do I reset my password?',
+                question: 'What resources are available?',
                 answer:
-                    'Go to the login screen and tap "Forgot Password". Follow the instructions sent to your email.',
+                    'You can access sermons, ebooks, Bible, Devotionals, Hymns. articles, and other spiritual content without signing in.',
               ),
             ],
           ),
@@ -97,13 +100,17 @@ class HelpSupportScreen extends StatelessWidget {
               FAQItem(
                 question: 'How do I download sermons?',
                 answer:
-                    'Tap the download icon next to any sermon to save it for offline listening.',
-                link: 'https://yourchurch.com/help/downloads',
+                    'To download a sermon, click the three dots icon on the sermon list card and select the download option.',
               ),
               FAQItem(
-                question: 'Can I share content with others?',
+                question: 'How do I access the downloaded sermon?',
                 answer:
-                    'Yes! Use the share button to send content via your preferred platform.',
+                    'You can access your downloaded sermons by clicking the downloaded tab on the sermon page.',
+              ),
+              FAQItem(
+                question: 'How do I download an ebook?',
+                answer:
+                    'To download an ebook, use the download button available on the book details page.',
               ),
             ],
           ),
@@ -122,8 +129,8 @@ class HelpSupportScreen extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 8),
-                Text('Email: support@yourchurch.com'),
-                Text('Phone: 1-800-CHURCH'),
+                Text('Email: products@impacttech-solutions.com'),
+                Text('Phone: +2347032196863'),
                 Text('Hours: Monday-Friday, 9AM-5PM EST'),
               ],
             ),

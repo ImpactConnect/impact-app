@@ -30,7 +30,14 @@ class SermonCard extends StatelessWidget {
         onTap: () {
           // Increment click count when sermon is tapped
           sermonService.incrementClickCount(sermon);
-          onTap();
+          
+          // Play the sermon using the audio player service
+          audioPlayerService.playSermon(sermon);
+          
+          // Show the mini player
+          if (onTap != null) {
+            onTap();
+          }
         },
         leading: Stack(
           children: [
@@ -141,8 +148,9 @@ class SermonCard extends StatelessWidget {
                   } else {
                     await sermonService.downloadSermon(sermon);
                   }
-                  // Trigger a refresh in the parent widget if callback is provided
-                  if (onRefresh != null) {
+                  // Only refresh if we're not currently playing this sermon
+                  if (onRefresh != null && 
+                      sermon.id != audioPlayerService.currentSermon?.id) {
                     onRefresh!();
                   }
                   break;

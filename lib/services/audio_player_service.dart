@@ -31,7 +31,10 @@ class AudioPlayerService {
   Future<void> playSermon(Sermon sermon) async {
     if (_currentSermon?.id != sermon.id) {
       _currentSermon = sermon;
-      await player.stop();
+      // Only stop if we're actually changing the sermon
+      if (_player != null) {
+        await _player!.stop();
+      }
 
       try {
         final mediaItem = MediaItem(
@@ -42,24 +45,27 @@ class AudioPlayerService {
           artUri: Uri.parse(sermon.thumbnailUrl),
         );
 
-        // Set the audio source with media item
-        await player.setAudioSource(
-          AudioSource.uri(
-            Uri.parse(sermon.audioUrl),
-            tag: mediaItem,
-          ),
-        );
+        // Use local audio path if available, otherwise use remote URL
+        final audioSource = sermon.localAudioPath != null
+            ? AudioSource.file(sermon.localAudioPath!, tag: mediaItem)
+            : AudioSource.uri(
+                Uri.parse(sermon.audioUrl),
+                tag: mediaItem,
+              );
 
-        await player.play();
+        // Set the audio source with media item
+        await _player!.setAudioSource(audioSource);
+
+        await _player!.play();
       } catch (e) {
         print('Error playing sermon: $e');
         rethrow;
       }
     } else {
-      if (player.playing) {
-        await player.pause();
+      if (_player?.playing ?? false) {
+        await _player!.pause();
       } else {
-        await player.play();
+        await _player!.play();
       }
     }
   }
@@ -86,42 +92,53 @@ class AudioPlayerService {
   }
 
   Future<void> seekForward(Duration duration) async {
-    final position = player.position;
+    final position = _player?.position ?? Duration.zero;
     final newPosition = position + duration;
     await seek(newPosition);
   }
 
   Future<void> seekBackward(Duration duration) async {
-    final position = player.position;
+    final position = _player?.position ?? Duration.zero;
     final newPosition = position - duration;
     await seek(newPosition.isNegative ? Duration.zero : newPosition);
   }
 
   bool isPlaying(String sermonId) {
-    return _currentSermon?.id == sermonId && player.playing;
+    if (_currentSermon == null || _player == null) return false;
+    return _currentSermon!.id == sermonId && _player!.playing;
   }
 
   Future<void> pause() async {
-    await player.pause();
+    if (_player != null) {
+      await _player!.pause();
+    }
   }
 
   Future<void> resume() async {
-    await player.play();
+    if (_player != null) {
+      await _player!.play();
+    }
   }
 
   Future<void> stop() async {
-    await player.stop();
+    if (_player != null) {
+      await _player!.stop();
+    }
     _currentSermon = null;
     _currentIndex = -1;
     _playlist = [];
   }
 
   Future<void> seek(Duration position) async {
-    await player.seek(position);
+    if (_player != null) {
+      await _player!.seek(position);
+    }
   }
 
   Future<void> dispose() async {
-    await _player?.dispose();
+    if (_player != null) {
+      await _player!.dispose();
+    }
     _player = null;
     _currentSermon = null;
     _currentIndex = -1;

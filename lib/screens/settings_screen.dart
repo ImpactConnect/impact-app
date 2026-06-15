@@ -5,6 +5,8 @@ import '../providers/theme_provider.dart';
 import '../services/storage_manager.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'help_support_screen.dart';
+import 'report_bug_screen.dart'; // Add this line
+import 'privacy_policy_screen.dart'; // Add this line
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -22,7 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadInfo();
+    WidgetsBinding.instance?.addPostFrameCallback((_) => _loadInfo());
   }
 
   Future<void> _loadInfo() async {
@@ -85,82 +87,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : ListView(
-                children: [
-                  // Appearance Section
-                  _buildSectionHeader('APPEARANCE'),
-                  ListTile(
-                    leading: const Icon(Icons.dark_mode),
-                    title: const Text('Dark Mode'),
-                    subtitle: const Text('Toggle dark theme'),
-                    trailing: Switch(
-                      value: themeProvider.themeMode == ThemeMode.dark,
-                      onChanged: (value) => themeProvider.toggleTheme(),
-                    ),
-                  ),
-                  _buildDivider(),
-
-                  // Storage Section
-                  _buildSectionHeader('STORAGE'),
-                  ListTile(
-                    leading: const Icon(Icons.storage),
-                    title: const Text('App Storage'),
-                    subtitle: Text('App Size: $_appSize'),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.cached),
-                    title: const Text('Cache'),
-                    subtitle: Text('Cache Size: $_cacheSize'),
-                    trailing: TextButton(
-                      onPressed: _showClearCacheDialog,
-                      child: const Text('CLEAR'),
-                    ),
-                  ),
-                  _buildDivider(),
-
-                  // Help & Support
-                  _buildSectionHeader('HELP & SUPPORT'),
-                  ListTile(
-                    leading: const Icon(Icons.help_outline),
-                    title: const Text('Help Center'),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const HelpSupportScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.mail_outline),
-                    title: const Text('Contact Support'),
-                    onTap: () => _launchURL('mailto:support@yourchurch.com'),
-                  ),
-                  _buildDivider(),
-
-                  // About Section
-                  _buildSectionHeader('ABOUT'),
-                  ListTile(
-                    leading: const Icon(Icons.info_outline),
-                    title: const Text('About'),
-                    subtitle: Text('Version $_appVersion'),
-                    onTap: _showAboutDialog,
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.policy_outlined),
-                    title: const Text('Privacy Policy'),
-                    onTap: () => _launchURL('https://yourchurch.com/privacy'),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.description_outlined),
-                    title: const Text('Terms of Service'),
-                    onTap: () => _launchURL('https://yourchurch.com/terms'),
-                  ),
-                ],
+        body: ListView(
+          children: [
+            // Appearance Section
+            _buildSectionHeader('APPEARANCE'),
+            ListTile(
+              leading: const Icon(Icons.dark_mode),
+              title: const Text('Dark Mode'),
+              subtitle: const Text('Toggle dark theme'),
+              trailing: Switch(
+                value: themeProvider.themeMode == ThemeMode.dark,
+                onChanged: (value) => themeProvider.toggleTheme(),
               ),
+            ),
+            _buildDivider(),
+
+            // Storage Section
+            _buildSectionHeader('STORAGE'),
+            ListTile(
+              leading: const Icon(Icons.storage),
+              title: const Text('App Storage'),
+              subtitle: !_isLoading ? Text('App Size: $_appSize') : const Text('...'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cached),
+              title: const Text('Cache'),
+              subtitle: !_isLoading ? Text('Cache Size: $_cacheSize') : const Text('...'),
+              trailing: TextButton(
+                onPressed: _showClearCacheDialog,
+                child: const Text('CLEAR'),
+              ),
+            ),
+            _buildDivider(),
+
+            // Help & Support
+            _buildSectionHeader('HELP & SUPPORT'),
+            ListTile(
+              leading: const Icon(Icons.help_outline),
+              title: const Text('Help Center'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const HelpSupportScreen(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.mail_outline),
+              title: const Text('Contact Support'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ReportBugScreen(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.privacy_tip),
+              title: const Text('Privacy Policy'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PrivacyPolicyScreen(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.warning),
+              title: const Text('Disclaimer'),
+              onTap: () {
+                _showDisclaimerDialog(context);
+              },
+            ),
+            _buildDivider(),
+
+            // About Section
+            _buildSectionHeader('ABOUT'),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('About'),
+              subtitle: Text('Version $_appVersion'),
+              onTap: _showAboutDialog,
+            ),
+            ListTile(
+              leading: const Icon(Icons.policy_outlined),
+              title: const Text('Terms of Service'),
+              onTap: () => _launchURL('https://yourchurch.com/terms'),
+            ),
+          ],
+        ),
         bottomNavigationBar: const BottomNavBar(currentIndex: 4),
       ),
     );
@@ -201,14 +222,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AboutDialog(
-        applicationName: 'Church Mobile',
+        applicationName: 'Impact Connect',
         applicationVersion: 'Version $_appVersion',
-        applicationIcon: const Icon(Icons.church, size: 50),
+        applicationIcon: Image.asset('assets/images/logo.png'),
         children: const [
           Text(
-            'Church Mobile is your comprehensive church companion app, '
-            'designed to enhance your spiritual journey with features like '
-            'Bible study, sermons, events, and more.',
+            'Impact Connect is a comprehensive church mobile application designed to enhance your spiritual journey. With features like sermon access, library management, and community engagement, we aim to provide a seamless experience for our users.\n\nVersion: 1.0'
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDisclaimerDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Disclaimer'),
+        content: const Text(
+          'Some materials available in the app, including audio sermons, ebooks, and articles, are sourced from online platforms. We do not claim ownership of these materials; they remain the intellectual property of their respective owners. Our intention is to feature these resources for the edification of others.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('Close'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
           ),
         ],
       ),

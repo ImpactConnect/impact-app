@@ -101,7 +101,11 @@ class _AudioPlayerBottomSheetState extends State<AudioPlayerBottomSheet> {
               ),
               IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: widget.onClose,
+                onPressed: () {
+                  // Instead of stopping the audio, just hide the player
+                  Navigator.of(context).pop(); // This will close the bottom sheet
+                  // Optionally, you can add logic to update the UI state if needed
+                },
               ),
             ],
           ),

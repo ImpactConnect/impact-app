@@ -141,7 +141,7 @@ ${widget.hymn.lyrics}
                       ],
                     ),
                     const SizedBox(height: 24),
-                    _buildLyrics(widget.hymn.lyrics, widget.hymn.chorus),
+                    _buildLyrics(widget.hymn.lyrics, widget.hymn.chorus, null),
                   ],
                 ),
               ),
@@ -152,7 +152,7 @@ ${widget.hymn.lyrics}
     );
   }
 
-  Widget _buildLyrics(List<List<String>> stanzas, List<String>? chorus) {
+  Widget _buildLyrics(List<List<String>> stanzas, List<String>? chorus, List<String>? addedChorus) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -186,7 +186,7 @@ ${widget.hymn.lyrics}
                       ),
                     ),
                   )),
-              if (chorus != null && i < stanzas.length - 1) ...[
+              if (chorus != null && (i < stanzas.length - 1 || addedChorus == null)) ...[
                 const SizedBox(height: 24),
                 Container(
                   padding:
@@ -219,6 +219,36 @@ ${widget.hymn.lyrics}
               ],
             ],
           ),
+        ],
+        if (addedChorus != null) ...[
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              'Added Chorus',
+              style: TextStyle(
+                color: Theme.of(context).primaryColor,
+                fontWeight: FontWeight.bold,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...addedChorus.map((line) => Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  line,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    height: 1.6,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              )),
         ],
       ],
     );
